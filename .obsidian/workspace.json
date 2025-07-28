@@ -170,6 +170,7 @@
   },
   "active": "5c92f903b565bc31",
   "lastOpenFiles": [
+    "packages/squizzle-cli/src/cli.test.ts",
     "packages/squizzle-security/src/security.test.ts",
     "packages/squizzle-security/src/security.test.ts.tmp.94567.1753727151390",
     "packages/squizzle-postgres/src/driver.test.ts",
@@ -180,7 +181,6 @@
     "packages/squizzle-cli/dist/commands/completion.d.ts",
     "packages/squizzle-cli/dist/commands/completion.d.ts.map",
     "packages/squizzle-cli/dist/commands/completion.js",
-    "packages/squizzle-cli/dist/commands/completion.js.map",
     "docs/guides/shell-completions.md",
     "docs/guides/error-recovery.md",
     "INSTRUCTIONS.md",
