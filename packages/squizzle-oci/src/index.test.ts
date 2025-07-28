@@ -12,6 +12,7 @@ vi.mock('child_process', () => ({
 
 // Mock fs module
 vi.mock('fs', () => ({
+  default: {},
   writeFileSync: vi.fn(),
   readFileSync: vi.fn(),
   existsSync: vi.fn(),
@@ -104,7 +105,7 @@ describe('OCIStorage', () => {
       expect(mockFs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('manifest.json'), JSON.stringify(manifest))
       expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker build'), { stdio: 'pipe' })
       expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker push'), { stdio: 'pipe' })
-      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('rm -rf'), expect.any(Object))
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('rm -rf'))
     })
 
     it('should include version labels in dockerfile', async () => {

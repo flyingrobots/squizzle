@@ -100,7 +100,12 @@ export class PostgresDriver implements DatabaseDriver {
       await client.query('COMMIT')
       return result
     } catch (error) {
-      await client.query('ROLLBACK')
+      try {
+        await client.query('ROLLBACK')
+      } catch (rollbackError) {
+        // Log rollback error but throw original error
+        console.error('Rollback failed:', rollbackError)
+      }
       throw error
     } finally {
       client.release()
@@ -137,8 +142,8 @@ export class PostgresDriver implements DatabaseDriver {
       appliedBy: row.applied_by,
       checksum: row.checksum,
       success: row.success,
-      error: row.error,
-      rollbackOf: row.rollback_of as Version | undefined
+      error: row.error || null,
+      rollbackOf: row.rollback_of ? row.rollback_of as Version : undefined
     }))
   }
 

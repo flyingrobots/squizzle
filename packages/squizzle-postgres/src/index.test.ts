@@ -380,8 +380,12 @@ describe('PostgresDriver', () => {
 
       await driver.getAppliedVersions()
 
-      const sql = mockClient.query.mock.calls[0][0]
-      expect(sql).toContain('ORDER BY applied_at DESC')
+      // Find the SELECT query (not the CREATE TABLE query)
+      const selectQuery = mockClient.query.mock.calls.find(call => 
+        call[0].includes('SELECT') && call[0].includes('FROM squizzle_versions')
+      )
+      expect(selectQuery).toBeDefined()
+      expect(selectQuery[0]).toContain('ORDER BY applied_at DESC')
     })
 
     it('should handle empty results', async () => {
