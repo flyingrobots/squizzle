@@ -638,23 +638,23 @@ function getInstallationInstructions(shell: ShellType): string {
       return `# Add to ~/.bashrc or ~/.bash_profile:
 # squizzle completion bash > ~/.bash_completion.d/squizzle
 # Or directly:
-# eval "$(squizzle completion --shell bash)"`
+# eval "$(squizzle completion --shell bash)"`;
       
     case 'zsh':
       return `# Add to ~/.zshrc:
 # squizzle completion --shell zsh > ~/.zsh/completions/_squizzle
-# Ensure ~/.zsh/completions is in your fpath`
+# Ensure ~/.zsh/completions is in your fpath`;
       
     case 'fish':
       return `# Save to Fish completions directory:
-# squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish`
+# squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish`;
       
     case 'powershell':
       return `# Add to your PowerShell profile:
 # squizzle completion --shell powershell | Out-String | Invoke-Expression
-# To find your profile location: $PROFILE`
+# To find your profile location: $PROFILE`;
       
     default:
-      return ''
+      return '';
   }
 }
