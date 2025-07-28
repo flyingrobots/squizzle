@@ -652,7 +652,7 @@ function getInstallationInstructions(shell: ShellType): string {
     case 'powershell':
       return `# Add to your PowerShell profile:
 # squizzle completion --shell powershell | Out-String | Invoke-Expression
-# To find your profile location: $PROFILE`;
+# To find your profile location: \$PROFILE`;
       
     default:
       return '';
