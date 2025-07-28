@@ -14,6 +14,8 @@ import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
 import { createConfig, loadConfig } from './config'
 import chalk from 'chalk'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 // Load environment variables
 config()
@@ -34,12 +36,68 @@ program
     }
   })
 
-// Initialize command
+// Initialize project command
 program
   .command('init')
   .description('Initialize SQUIZZLE in your project')
   .action(async () => {
     await initCommand()
+  })
+
+// Initialize database command
+program
+  .command('init:db')
+  .alias('db:init')
+  .description('Initialize Squizzle system tables in the database')
+  .option('--force', 'Recreate tables even if they exist')
+  .option('--dry-run', 'Show what would be created')
+  .action(async (options) => {
+    const config = await loadConfig(program.opts().config)
+    const env = program.opts().env
+    
+    const driver = createPostgresDriver(config.environments[env].database)
+    const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
+    
+    try {
+      await driver.connect()
+      
+      // Read system SQL
+      const systemSqlPath = join(__dirname, '../../squizzle-core/sql/system/v1.0.0.sql')
+      const systemSql = readFileSync(systemSqlPath, 'utf-8')
+      
+      if (options.dryRun) {
+        console.log(chalk.bold('\nSystem tables SQL to be executed:\n'))
+        console.log(chalk.dim(systemSql))
+        return
+      }
+      
+      // Check if tables already exist
+      const tables = await driver.query(`
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'squizzle_versions'
+      `)
+      
+      if (tables.length > 0 && !options.force) {
+        console.log(chalk.yellow('System tables already exist. Use --force to recreate.'))
+        return
+      }
+      
+      if (options.force && tables.length > 0) {
+        logger.warn('Dropping existing system tables...')
+        await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      }
+      
+      logger.info('Creating Squizzle system tables...')
+      await driver.execute(systemSql)
+      
+      console.log(chalk.green('✓ System tables initialized successfully'))
+    } catch (error) {
+      console.error(chalk.red(`Failed to initialize system tables: ${error}`))
+      process.exit(1)
+    } finally {
+      await driver.disconnect()
+    }
   })
 
 // Build command
