@@ -1,646 +1,483 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { OCIStorage } from './index'
-import { StorageError } from '@squizzle/core'
-import * as https from 'https'
-import * as http from 'http'
-import { EventEmitter } from 'events'
+import { OCIStorage, FilesystemStorage, createOCIStorage, OCIStorageOptions } from './index'
+import { StorageError, Version, Manifest } from '@squizzle/core'
+import { execSync } from 'child_process'
 import * as fs from 'fs'
+import * as path from 'path'
 
-// Mock modules
-vi.mock('fs')
-vi.mock('child_process')
-vi.mock('https')
-vi.mock('http')
+// Mock child_process
+vi.mock('child_process', () => ({
+  execSync: vi.fn()
+}))
 
-// Helper to create mock HTTP response
-class MockResponse extends EventEmitter {
-  statusCode: number
-  headers: http.IncomingHttpHeaders
-  
-  constructor(statusCode: number, headers: http.IncomingHttpHeaders = {}) {
-    super()
-    this.statusCode = statusCode
-    this.headers = headers
-  }
-
-  simulateData(data: string) {
-    this.emit('data', data)
-    this.emit('end')
-  }
-}
-
-// Helper to create mock HTTP request
-class MockRequest extends EventEmitter {
-  public destroyed = false
-  
-  write = vi.fn()
-  end = vi.fn()
-  
-  destroy = vi.fn(() => {
-    this.destroyed = true
-  })
-  
-  setTimeout = vi.fn()
-}
+// Mock fs module
+vi.mock('fs', () => ({
+  writeFileSync: vi.fn(),
+  readFileSync: vi.fn(),
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  readdirSync: vi.fn(),
+  unlinkSync: vi.fn()
+}))
 
 describe('OCIStorage', () => {
   let storage: OCIStorage
+  let mockExecSync: jest.Mock
+  let mockFs: typeof fs
 
   beforeEach(() => {
+    mockExecSync = execSync as unknown as jest.Mock
+    mockFs = fs as any
     vi.clearAllMocks()
-    
-    storage = new OCIStorage({
-      registry: 'registry.example.com',
-      repository: 'test-repo'
-    })
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  describe('list()', () => {
-    it('should return empty array when repository does not exist', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(404)
+  describe('constructor', () => {
+    it('should create storage with registry and default repository', () => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData('{"errors":[{"code":"NAME_UNKNOWN"}]}')
-        })
-        return mockReq as any
+      expect(storage).toBeDefined()
+    })
+
+    it('should use custom repository if provided', () => {
+      storage = new OCIStorage({ 
+        registry: 'localhost:5000',
+        repository: 'my-artifacts'
+      })
+      
+      expect(storage).toBeDefined()
+    })
+
+    it('should login if credentials provided', () => {
+      storage = new OCIStorage({
+        registry: 'localhost:5000',
+        username: 'user',
+        password: 'pass'
       })
 
-      const versions = await storage.list()
-      
-      expect(versions).toEqual([])
-      expect(https.request).toHaveBeenCalledWith(
-        expect.objectContaining({
-          hostname: 'registry.example.com',
-          path: '/v2/test-repo/tags/list'
-        }),
-        expect.any(Function)
+      expect(mockExecSync).toHaveBeenCalledWith(
+        expect.stringContaining('docker login localhost:5000'),
+        { stdio: 'pipe' }
       )
     })
 
-    it('should return sorted versions from tags', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(200)
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData(JSON.stringify({
-            name: 'test-repo',
-            tags: ['v1.0.0', 'v2.1.0', 'v1.5.0', 'latest', 'v1.0.0-beta.1', 'invalid']
-          }))
-        })
-        return mockReq as any
+    it('should throw StorageError on login failure', () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('Login failed')
       })
 
-      const versions = await storage.list()
-      
-      expect(versions).toEqual(['1.0.0-beta.1', '1.0.0', '1.5.0', '2.1.0'])
-    })
-
-    it('should handle pagination with Link header', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // First page
-            const mockRes = new MockResponse(200, {
-              link: '<https://registry.example.com/v2/test-repo/tags/list?n=10&last=v1.5.0>; rel="next"'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({
-              name: 'test-repo',
-              tags: ['v1.0.0', 'v1.2.0', 'v1.5.0']
-            }))
-          } else {
-            // Second page
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({
-              name: 'test-repo',
-              tags: ['v1.8.0', 'v2.0.0']
-            }))
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      const versions = await storage.list()
-      
-      expect(versions).toEqual(['1.0.0', '1.2.0', '1.5.0', '1.8.0', '2.0.0'])
-      expect(https.request).toHaveBeenCalledTimes(2)
-    })
-
-    it('should handle authentication challenge', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // First request returns 401
-            const mockRes = new MockResponse(401, {
-              'www-authenticate': 'Bearer realm="https://auth.example.com/token",service="registry.example.com",scope="repository:test-repo:pull"'
-            })
-            callback(mockRes)
-            mockRes.simulateData('')
-          } else if (callCount === 2) {
-            // Auth token request
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
-          } else {
-            // Retry with token
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({
-              name: 'test-repo',
-              tags: ['v1.0.0']
-            }))
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      const versions = await storage.list()
-      
-      expect(versions).toEqual(['1.0.0'])
-      expect(https.request).toHaveBeenCalledTimes(3)
-      
-      // Check auth header was added
-      const lastCall = vi.mocked(https.request).mock.calls[2][0]
-      expect(lastCall.headers.Authorization).toBe('Bearer test-token')
-    })
-
-    it('should throw StorageError on HTTP errors', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(500)
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData('Internal Server Error')
-        })
-        return mockReq as any
-      })
-
-      await expect(storage.list()).rejects.toThrow(StorageError)
-      await expect(storage.list()).rejects.toThrow('Failed to list tags: HTTP 500')
-    })
-
-    it('should handle network errors', async () => {
-      const mockReq = new MockRequest()
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          mockReq.emit('error', new Error('Network error'))
-        })
-        return mockReq as any
-      })
-
-      await expect(storage.list()).rejects.toThrow(StorageError)
-      await expect(storage.list()).rejects.toThrow('HTTP request failed: Network error')
-    })
-
-    it('should handle request timeout', async () => {
-      const mockReq = new MockRequest()
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        mockReq.setTimeout.mockImplementation((timeout, cb) => {
-          // Simulate timeout
-          setImmediate(() => cb())
-        })
-        return mockReq as any
-      })
-
-      await expect(storage.list()).rejects.toThrow(StorageError)
-      await expect(storage.list()).rejects.toThrow('HTTP request timeout')
-    })
-
-    it('should filter out non-semver tags', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(200)
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData(JSON.stringify({
-            name: 'test-repo',
-            tags: ['v1.0.0', 'v1.2', 'latest', 'v', 'vtest', 'v1.0.0.0', '1.0.0']
-          }))
-        })
-        return mockReq as any
-      })
-
-      const versions = await storage.list()
-      
-      expect(versions).toEqual(['1.0.0'])
-    })
-
-    it('should use insecure protocol when configured', async () => {
-      const insecureStorage = new OCIStorage({
-        registry: 'registry.example.com',
-        repository: 'test-repo',
-        insecure: true
-      })
-
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(200)
-      
-      vi.mocked(http.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData(JSON.stringify({
-            name: 'test-repo',
-            tags: ['v1.0.0']
-          }))
-        })
-        return mockReq as any
-      })
-
-      const versions = await insecureStorage.list()
-      
-      expect(versions).toEqual(['1.0.0'])
-      expect(http.request).toHaveBeenCalled()
-      expect(https.request).not.toHaveBeenCalled()
+      expect(() => new OCIStorage({
+        registry: 'localhost:5000',
+        username: 'user',
+        password: 'pass'
+      })).toThrow(StorageError)
     })
   })
 
-  describe('delete()', () => {
-    it('should successfully delete a version', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // GET manifest
-            const mockRes = new MockResponse(200, {
-              'docker-content-digest': 'sha256:abc123'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else if (callCount === 2) {
-            // DELETE by digest
-            const mockRes = new MockResponse(202)
-            callback(mockRes)
-            mockRes.simulateData('')
-          } else if (callCount === 3) {
-            // HEAD to verify deletion
-            const mockRes = new MockResponse(404)
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      await storage.delete('1.0.0')
-      
-      expect(https.request).toHaveBeenCalledTimes(3)
-      
-      // Check DELETE was called with digest
-      const deleteCall = vi.mocked(https.request).mock.calls[1][0]
-      expect(deleteCall.method).toBe('DELETE')
-      expect(deleteCall.path).toBe('/v2/test-repo/manifests/sha256:abc123')
+  describe('push', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
+      mockExecSync.mockReturnValue('')
     })
 
-    it('should throw error when version not found', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(404)
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData('')
-        })
-        return mockReq as any
-      })
-
-      await expect(storage.delete('1.0.0')).rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0')).rejects.toThrow('Version 1.0.0 not found in registry')
-    })
-
-    it('should throw error when digest not found', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(200, {})
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData(JSON.stringify({ layers: [] }))
-        })
-        return mockReq as any
-      })
-
-      await expect(storage.delete('1.0.0')).rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0')).rejects.toThrow('No digest found for version 1.0.0')
-    })
-
-    it('should handle registry that does not support deletion', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // GET manifest
-            const mockRes = new MockResponse(200, {
-              'docker-content-digest': 'sha256:abc123'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else {
-            // DELETE returns 405
-            const mockRes = new MockResponse(405)
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      await expect(storage.delete('1.0.0')).rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0')).rejects.toThrow('Registry does not support deletion')
-    })
-
-    it('should handle insufficient permissions', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // GET manifest
-            const mockRes = new MockResponse(200, {
-              'docker-content-digest': 'sha256:abc123'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else {
-            // DELETE returns 403
-            const mockRes = new MockResponse(403)
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      await expect(storage.delete('1.0.0')).rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0')).rejects.toThrow('Insufficient permissions to delete from registry')
-    })
-
-    it('should handle already deleted (404 on DELETE)', async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // GET manifest
-            const mockRes = new MockResponse(200, {
-              'docker-content-digest': 'sha256:abc123'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else {
-            // DELETE returns 404 (already deleted)
-            const mockRes = new MockResponse(404)
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      // Should not throw
-      await expect(storage.delete('1.0.0')).resolves.toBeUndefined()
-    })
-
-    it('should throw error if deletion verification fails', { timeout: 10000 }, async () => {
-      let callCount = 0
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            // GET manifest
-            const mockRes = new MockResponse(200, {
-              'docker-content-digest': 'sha256:abc123'
-            })
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else if (callCount === 2) {
-            // DELETE succeeds
-            const mockRes = new MockResponse(202)
-            callback(mockRes)
-            mockRes.simulateData('')
-          } else if (callCount === 3) {
-            // HEAD still returns 200 (not deleted)
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      await expect(storage.delete('1.0.0')).rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0')).rejects.toThrow('Failed to verify deletion of version 1.0.0')
-    })
-
-    it('should use correct Accept headers for manifest', async () => {
-      const mockReq = new MockRequest()
-      const mockRes = new MockResponse(404)
-      
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        setImmediate(() => {
-          callback(mockRes)
-          mockRes.simulateData('')
-        })
-        return mockReq as any
-      })
-
-      try {
-        await storage.delete('1.0.0')
-      } catch {
-        // Expected to throw
+    it('should push artifact to registry', async () => {
+      const version = '1.0.0' as Version
+      const artifact = Buffer.from('test artifact')
+      const manifest: Manifest = {
+        version,
+        checksum: 'abc123',
+        created: '2024-01-01T00:00:00Z',
+        checksumAlgorithm: 'sha256',
+        drizzleKit: '0.25.0',
+        engineVersion: '2.0.0',
+        notes: '',
+        files: [],
+        dependencies: [],
+        platform: { os: 'linux', arch: 'x64', node: 'v18.0.0' }
       }
 
-      const call = vi.mocked(https.request).mock.calls[0][0]
-      expect(call.headers.Accept).toContain('application/vnd.docker.distribution.manifest.v2+json')
-      expect(call.headers.Accept).toContain('application/vnd.oci.image.manifest.v1+json')
+      const result = await storage.push(version, artifact, manifest)
+
+      expect(result).toBe('localhost:5000/squizzle-artifacts:v1.0.0')
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('mkdir -p /tmp/squizzle-'))
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('Dockerfile'), expect.any(String))
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('artifact.tar.gz'), artifact)
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('manifest.json'), JSON.stringify(manifest))
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker build'), { stdio: 'pipe' })
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker push'), { stdio: 'pipe' })
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('rm -rf'), expect.any(Object))
+    })
+
+    it('should include version labels in dockerfile', async () => {
+      const version = '2.0.0' as Version
+      const manifest = { 
+        version,
+        checksum: 'def456',
+        created: '2024-01-01T00:00:00Z'
+      } as Manifest
+
+      await storage.push(version, Buffer.from('test'), manifest)
+
+      const dockerfileCall = mockFs.writeFileSync.mock.calls.find(
+        call => call[0].endsWith('Dockerfile')
+      )
+      const dockerfileContent = dockerfileCall![1]
+
+      expect(dockerfileContent).toContain('LABEL org.opencontainers.image.version="2.0.0"')
+      expect(dockerfileContent).toContain('LABEL io.squizzle.version="2.0.0"')
+      expect(dockerfileContent).toContain('LABEL io.squizzle.checksum="def456"')
+    })
+
+    it('should cleanup temp directory on error', async () => {
+      mockExecSync
+        .mockReturnValueOnce('') // mkdir
+        .mockImplementationOnce(() => { throw new Error('Build failed') }) // docker build
+
+      await expect(storage.push('1.0.0' as Version, Buffer.from('test'), {} as Manifest))
+        .rejects.toThrow(StorageError)
+
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('rm -rf'))
+    })
+
+    it('should throw StorageError on push failure', async () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('Push failed')
+      })
+
+      await expect(storage.push('1.0.0' as Version, Buffer.from('test'), {} as Manifest))
+        .rejects.toThrow(StorageError)
     })
   })
 
-  describe('authentication', () => {
-    it('should read Docker config when available', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        auths: {
-          'registry.example.com': {
-            auth: Buffer.from('user:pass').toString('base64')
-          }
-        }
-      }) as any)
-
-      const authStorage = new OCIStorage({
-        registry: 'registry.example.com'
-      })
-
-      // Trigger auth by making request that returns 401
-      let callCount = 0
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            const mockRes = new MockResponse(401, {
-              'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
-            })
-            callback(mockRes)
-            mockRes.simulateData('')
-          } else if (callCount === 2) {
-            // Auth request should have basic auth
-            expect(options.headers?.Authorization).toBe(`Basic ${Buffer.from('user:pass').toString('base64')}`)
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
-          } else {
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
-          }
-        })
-        
-        return mockReq as any
-      })
-
-      await authStorage.list()
+  describe('pull', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
     })
 
-    it('should use explicit credentials over Docker config', async () => {
-      const authStorage = new OCIStorage({
-        registry: 'registry.example.com',
-        username: 'explicit-user',
-        password: 'explicit-pass'
-      })
+    it('should pull artifact from registry', async () => {
+      const artifactData = Buffer.from('test artifact data')
+      const manifestData = { version: '1.0.0', checksum: 'abc123' }
 
-      let callCount = 0
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
-            const mockRes = new MockResponse(401, {
-              'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
-            })
-            callback(mockRes)
-            mockRes.simulateData('')
-          } else if (callCount === 2) {
-            // Should use explicit credentials
-            expect(options.headers?.Authorization).toBe(
-              `Basic ${Buffer.from('explicit-user:explicit-pass').toString('base64')}`
-            )
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
-          } else {
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
-          }
-        })
-        
-        return mockReq as any
-      })
+      mockExecSync
+        .mockReturnValueOnce('') // docker pull
+        .mockReturnValueOnce('container123\n') // docker create
+        .mockReturnValueOnce('') // docker cp artifact
+        .mockReturnValueOnce('') // docker cp manifest
+        .mockReturnValueOnce('') // docker rm
+        .mockReturnValueOnce('') // rm cleanup
 
-      await authStorage.list()
+      mockFs.readFileSync
+        .mockReturnValueOnce(artifactData) // artifact
+        .mockReturnValueOnce(JSON.stringify(manifestData)) // manifest
+
+      const result = await storage.pull('1.0.0' as Version)
+
+      expect(result.artifact).toEqual(artifactData)
+      expect(result.manifest).toEqual(manifestData)
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker pull localhost:5000/squizzle-artifacts:v1.0.0'), { stdio: 'pipe' })
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker create'), expect.any(Object))
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker cp container123:/artifact.tar.gz'))
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker cp container123:/manifest.json'))
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker rm container123'))
     })
 
-    it('should cache auth tokens', async () => {
-      let authCallCount = 0
-      
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
-        const mockReq = new MockRequest()
-        
-        setImmediate(() => {
-          const isAuthRequest = options.hostname === 'auth.example.com'
-          
-          if (isAuthRequest) {
-            authCallCount++
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ 
-              token: 'test-token',
-              expires_in: 300
-            }))
-          } else if (options.headers?.Authorization) {
-            // Regular request with auth
-            const mockRes = new MockResponse(200)
-            callback(mockRes)
-            mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
-          } else {
-            // Initial 401
-            const mockRes = new MockResponse(401, {
-              'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
-            })
-            callback(mockRes)
-            mockRes.simulateData('')
-          }
-        })
-        
-        return mockReq as any
+    it('should cleanup container on error', async () => {
+      mockExecSync
+        .mockReturnValueOnce('') // docker pull
+        .mockReturnValueOnce('container456\n') // docker create
+        .mockImplementationOnce(() => { throw new Error('Copy failed') }) // docker cp
+
+      await expect(storage.pull('1.0.0' as Version))
+        .rejects.toThrow(StorageError)
+
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('docker rm container456'))
+    })
+
+    it('should throw StorageError on pull failure', async () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('Pull failed')
       })
 
-      // First call should trigger auth
-      await storage.list()
-      expect(authCallCount).toBe(1)
-
-      // Second call should use cached token
-      await storage.list()
-      expect(authCallCount).toBe(1)
+      await expect(storage.pull('1.0.0' as Version))
+        .rejects.toThrow(StorageError)
     })
+  })
+
+  describe('exists', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
+    })
+
+    it('should return true if version exists', async () => {
+      mockExecSync.mockReturnValue('')
+
+      const result = await storage.exists('1.0.0' as Version)
+
+      expect(result).toBe(true)
+      expect(mockExecSync).toHaveBeenCalledWith(
+        'docker manifest inspect localhost:5000/squizzle-artifacts:v1.0.0',
+        { stdio: 'pipe' }
+      )
+    })
+
+    it('should return false if version does not exist', async () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('manifest unknown')
+      })
+
+      const result = await storage.exists('1.0.0' as Version)
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('list', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
+    })
+
+    it('should return empty array (not implemented)', async () => {
+      mockExecSync.mockReturnValue('localhost:5000/squizzle-artifacts\n')
+
+      const result = await storage.list()
+
+      expect(result).toEqual([])
+    })
+
+    it('should throw StorageError on list failure', async () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('Search failed')
+      })
+
+      await expect(storage.list()).rejects.toThrow(StorageError)
+    })
+  })
+
+  describe('delete', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
+    })
+
+    it('should throw not implemented error', async () => {
+      await expect(storage.delete('1.0.0' as Version))
+        .rejects.toThrow(StorageError)
+      await expect(storage.delete('1.0.0' as Version))
+        .rejects.toThrow('Deletion not implemented for OCI storage')
+    })
+  })
+
+  describe('getManifest', () => {
+    beforeEach(() => {
+      storage = new OCIStorage({ registry: 'localhost:5000' })
+    })
+
+    it('should get manifest by pulling artifact', async () => {
+      const manifestData = { version: '1.0.0', checksum: 'abc123' }
+
+      mockExecSync
+        .mockReturnValueOnce('') // docker pull
+        .mockReturnValueOnce('container123\n') // docker create
+        .mockReturnValueOnce('') // docker cp artifact
+        .mockReturnValueOnce('') // docker cp manifest
+        .mockReturnValueOnce('') // docker rm
+        .mockReturnValueOnce('') // rm cleanup
+
+      mockFs.readFileSync
+        .mockReturnValueOnce(Buffer.from('artifact'))
+        .mockReturnValueOnce(JSON.stringify(manifestData))
+
+      const result = await storage.getManifest('1.0.0' as Version)
+
+      expect(result).toEqual(manifestData)
+    })
+  })
+})
+
+describe('FilesystemStorage', () => {
+  let storage: FilesystemStorage
+  let mockFs: typeof fs
+  const testPath = '/tmp/test-artifacts'
+
+  beforeEach(() => {
+    mockFs = fs as any
+    vi.clearAllMocks()
+    mockFs.mkdirSync.mockReturnValue(undefined)
+    storage = new FilesystemStorage(testPath)
+  })
+
+  describe('constructor', () => {
+    it('should create base directory', () => {
+      expect(mockFs.mkdirSync).toHaveBeenCalledWith(testPath, { recursive: true })
+    })
+  })
+
+  describe('push', () => {
+    it('should write artifact and manifest files', async () => {
+      const version = '1.0.0' as Version
+      const artifact = Buffer.from('test artifact')
+      const manifest = { version, checksum: 'abc123' } as Manifest
+
+      const result = await storage.push(version, artifact, manifest)
+
+      expect(result).toBe(`${testPath}/squizzle-v1.0.0.tar.gz`)
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
+        `${testPath}/squizzle-v1.0.0.tar.gz`,
+        artifact
+      )
+      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
+        `${testPath}/squizzle-v1.0.0.manifest.json`,
+        JSON.stringify(manifest, null, 2)
+      )
+    })
+  })
+
+  describe('pull', () => {
+    it('should read artifact and manifest files', async () => {
+      const artifactData = Buffer.from('test artifact')
+      const manifestData = { version: '1.0.0', checksum: 'abc123' }
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync
+        .mockReturnValueOnce(artifactData)
+        .mockReturnValueOnce(JSON.stringify(manifestData))
+
+      const result = await storage.pull('1.0.0' as Version)
+
+      expect(result.artifact).toEqual(artifactData)
+      expect(result.manifest).toEqual(manifestData)
+      expect(mockFs.readFileSync).toHaveBeenCalledWith(`${testPath}/squizzle-v1.0.0.tar.gz`)
+      expect(mockFs.readFileSync).toHaveBeenCalledWith(
+        `${testPath}/squizzle-v1.0.0.manifest.json`,
+        'utf-8'
+      )
+    })
+
+    it('should throw StorageError if artifact not found', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      await expect(storage.pull('1.0.0' as Version))
+        .rejects.toThrow(StorageError)
+      await expect(storage.pull('1.0.0' as Version))
+        .rejects.toThrow('Artifact not found: 1.0.0')
+    })
+  })
+
+  describe('exists', () => {
+    it('should check if artifact file exists', async () => {
+      mockFs.existsSync.mockReturnValue(true)
+
+      const result = await storage.exists('1.0.0' as Version)
+
+      expect(result).toBe(true)
+      expect(mockFs.existsSync).toHaveBeenCalledWith(`${testPath}/squizzle-v1.0.0.tar.gz`)
+    })
+
+    it('should return false if artifact does not exist', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const result = await storage.exists('1.0.0' as Version)
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('list', () => {
+    it('should list all artifact versions', async () => {
+      mockFs.readdirSync.mockReturnValue([
+        'squizzle-v1.0.0.tar.gz',
+        'squizzle-v1.0.1.tar.gz',
+        'squizzle-v2.0.0.tar.gz',
+        'squizzle-v1.0.0.manifest.json',
+        'other-file.txt'
+      ])
+
+      const result = await storage.list()
+
+      expect(result).toEqual(['1.0.0', '1.0.1', '2.0.0'])
+      expect(mockFs.readdirSync).toHaveBeenCalledWith(testPath)
+    })
+
+    it('should return empty array if no artifacts', async () => {
+      mockFs.readdirSync.mockReturnValue(['readme.txt'])
+
+      const result = await storage.list()
+
+      expect(result).toEqual([])
+    })
+
+    it('should sort versions', async () => {
+      mockFs.readdirSync.mockReturnValue([
+        'squizzle-v2.0.0.tar.gz',
+        'squizzle-v1.0.0.tar.gz',
+        'squizzle-v1.1.0.tar.gz'
+      ])
+
+      const result = await storage.list()
+
+      expect(result).toEqual(['1.0.0', '1.1.0', '2.0.0'])
+    })
+  })
+
+  describe('delete', () => {
+    it('should delete artifact and manifest files', async () => {
+      await storage.delete('1.0.0' as Version)
+
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith(`${testPath}/squizzle-v1.0.0.tar.gz`)
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith(`${testPath}/squizzle-v1.0.0.manifest.json`)
+    })
+  })
+
+  describe('getManifest', () => {
+    it('should read manifest file', async () => {
+      const manifestData = { version: '1.0.0', checksum: 'abc123' }
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(manifestData))
+
+      const result = await storage.getManifest('1.0.0' as Version)
+
+      expect(result).toEqual(manifestData)
+      expect(mockFs.readFileSync).toHaveBeenCalledWith(
+        `${testPath}/squizzle-v1.0.0.manifest.json`,
+        'utf-8'
+      )
+    })
+  })
+})
+
+describe('createOCIStorage factory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should create FilesystemStorage for filesystem type', () => {
+    const storage = createOCIStorage({ type: 'filesystem', path: '/custom/path' })
+
+    expect(storage).toBeInstanceOf(FilesystemStorage)
+  })
+
+  it('should use default path for filesystem storage', () => {
+    const storage = createOCIStorage({ type: 'filesystem' })
+
+    expect(storage).toBeInstanceOf(FilesystemStorage)
+  })
+
+  it('should create OCIStorage for oci type', () => {
+    const storage = createOCIStorage({ type: 'oci', registry: 'localhost:5000' })
+
+    expect(storage).toBeInstanceOf(OCIStorage)
+  })
+
+  it('should throw error for oci type without registry', () => {
+    expect(() => createOCIStorage({ type: 'oci' }))
+      .toThrow('OCI storage requires registry option')
+  })
+
+  it('should throw error for unknown storage type', () => {
+    expect(() => createOCIStorage({ type: 'unknown' } as any))
+      .toThrow('Unknown storage type: unknown')
+  })
+
+  it('should create OCIStorage when options is OCIStorageOptions', () => {
+    const storage = createOCIStorage({ registry: 'localhost:5000' })
+
+    expect(storage).toBeInstanceOf(OCIStorage)
   })
 })
