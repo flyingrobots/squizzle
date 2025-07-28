@@ -59,7 +59,7 @@ _squizzle_completions() {
   fi
 
   # Get the command
-  local cmd="${words[1]}"
+  local cmd="\${words[1]}"
 
   # Command-specific completions
   case "$cmd" in
@@ -191,7 +191,7 @@ _squizzle() {
     "1: :_squizzle_commands" \\
     "*::arg:->args"
 
-  case $line[1] in
+  case \$line[1] in
     build)
       _squizzle_build
       ;;
@@ -298,25 +298,25 @@ _squizzle_completion() {
 # Helper function to get available versions
 _squizzle_versions() {
   local versions
-  versions=(${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
+  versions=(\${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
   _describe -t versions 'version' versions
 }
 
 # Helper function to suggest next version
 _squizzle_next_version() {
   local versions last_version
-  versions=(${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
+  versions=(\${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
   
-  if [ ${#versions[@]} -gt 0 ]; then
-    last_version=${versions[-1]}
+  if [ \${#versions[@]} -gt 0 ]; then
+    last_version=\${versions[-1]}
     local major=$(echo $last_version | cut -d. -f1)
     local minor=$(echo $last_version | cut -d. -f2)
     local patch=$(echo $last_version | cut -d. -f3)
     
     local suggestions=(
-      "$major.$minor.$((patch + 1))"
-      "$major.$((minor + 1)).0"
-      "$((major + 1)).0.0"
+      "\$major.\$minor.\$((patch + 1))"
+      "\$major.\$((minor + 1)).0"
+      "\$((major + 1)).0.0"
     )
     _describe -t versions 'version' suggestions
   else
@@ -447,16 +447,16 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
     }
     
     $globalOptions = @(
-        [CompletionResult]::new('-c', '-c', 'ParameterName', 'Config file path')
-        [CompletionResult]::new('--config', '--config', 'ParameterName', 'Config file path')
-        [CompletionResult]::new('-e', '-e', 'ParameterName', 'Environment to use')
-        [CompletionResult]::new('--env', '--env', 'ParameterName', 'Environment to use')
-        [CompletionResult]::new('-v', '-v', 'ParameterName', 'Verbose output')
-        [CompletionResult]::new('--verbose', '--verbose', 'ParameterName', 'Verbose output')
-        [CompletionResult]::new('--no-banner', '--no-banner', 'ParameterName', 'Disable banner')
-        [CompletionResult]::new('-h', '-h', 'ParameterName', 'Show help')
-        [CompletionResult]::new('--help', '--help', 'ParameterName', 'Show help')
-        [CompletionResult]::new('-V', '-V', 'ParameterName', 'Show version')
+        [CompletionResult]::new('-c', '-c', 'ParameterName', 'Config file path'),
+        [CompletionResult]::new('--config', '--config', 'ParameterName', 'Config file path'),
+        [CompletionResult]::new('-e', '-e', 'ParameterName', 'Environment to use'),
+        [CompletionResult]::new('--env', '--env', 'ParameterName', 'Environment to use'),
+        [CompletionResult]::new('-v', '-v', 'ParameterName', 'Verbose output'),
+        [CompletionResult]::new('--verbose', '--verbose', 'ParameterName', 'Verbose output'),
+        [CompletionResult]::new('--no-banner', '--no-banner', 'ParameterName', 'Disable banner'),
+        [CompletionResult]::new('-h', '-h', 'ParameterName', 'Show help'),
+        [CompletionResult]::new('--help', '--help', 'ParameterName', 'Show help'),
+        [CompletionResult]::new('-V', '-V', 'ParameterName', 'Show version'),
         [CompletionResult]::new('--version', '--version', 'ParameterName', 'Show version')
     )
     
@@ -522,12 +522,12 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
             } else {
                 # Build options
                 @(
-                    [CompletionResult]::new('-n', '-n', 'ParameterName', 'Version notes')
-                    [CompletionResult]::new('--notes', '--notes', 'ParameterName', 'Version notes')
-                    [CompletionResult]::new('-a', '-a', 'ParameterName', 'Version author')
-                    [CompletionResult]::new('--author', '--author', 'ParameterName', 'Version author')
-                    [CompletionResult]::new('-t', '-t', 'ParameterName', 'Version tags')
-                    [CompletionResult]::new('--tag', '--tag', 'ParameterName', 'Version tags')
+                    [CompletionResult]::new('-n', '-n', 'ParameterName', 'Version notes'),
+                    [CompletionResult]::new('--notes', '--notes', 'ParameterName', 'Version notes'),
+                    [CompletionResult]::new('-a', '-a', 'ParameterName', 'Version author'),
+                    [CompletionResult]::new('--author', '--author', 'ParameterName', 'Version author'),
+                    [CompletionResult]::new('-t', '-t', 'ParameterName', 'Version tags'),
+                    [CompletionResult]::new('--tag', '--tag', 'ParameterName', 'Version tags'),
                     [CompletionResult]::new('--dry-run', '--dry-run', 'ParameterName', 'Simulate build')
                 ) + $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
             }
@@ -542,11 +542,11 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
             } else {
                 # Apply options
                 @(
-                    [CompletionResult]::new('-f', '-f', 'ParameterName', 'Force apply')
-                    [CompletionResult]::new('--force', '--force', 'ParameterName', 'Force apply')
-                    [CompletionResult]::new('--dry-run', '--dry-run', 'ParameterName', 'Simulate apply')
-                    [CompletionResult]::new('--timeout', '--timeout', 'ParameterName', 'Migration timeout')
-                    [CompletionResult]::new('--parallel', '--parallel', 'ParameterName', 'Run in parallel')
+                    [CompletionResult]::new('-f', '-f', 'ParameterName', 'Force apply'),
+                    [CompletionResult]::new('--force', '--force', 'ParameterName', 'Force apply'),
+                    [CompletionResult]::new('--dry-run', '--dry-run', 'ParameterName', 'Simulate apply'),
+                    [CompletionResult]::new('--timeout', '--timeout', 'ParameterName', 'Migration timeout'),
+                    [CompletionResult]::new('--parallel', '--parallel', 'ParameterName', 'Run in parallel'),
                     [CompletionResult]::new('--max-parallel', '--max-parallel', 'ParameterName', 'Max parallel')
                 ) + $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
             }
@@ -561,8 +561,8 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
             } else {
                 # Rollback options
                 @(
-                    [CompletionResult]::new('-f', '-f', 'ParameterName', 'Force rollback')
-                    [CompletionResult]::new('--force', '--force', 'ParameterName', 'Force rollback')
+                    [CompletionResult]::new('-f', '-f', 'ParameterName', 'Force rollback'),
+                    [CompletionResult]::new('--force', '--force', 'ParameterName', 'Force rollback'),
                     [CompletionResult]::new('--dry-run', '--dry-run', 'ParameterName', 'Simulate rollback')
                 ) + $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
             }
@@ -585,8 +585,8 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
         'status' {
             # Status options
             @(
-                [CompletionResult]::new('-l', '-l', 'ParameterName', 'Limit results')
-                [CompletionResult]::new('--limit', '--limit', 'ParameterName', 'Limit results')
+                [CompletionResult]::new('-l', '-l', 'ParameterName', 'Limit results'),
+                [CompletionResult]::new('--limit', '--limit', 'ParameterName', 'Limit results'),
                 [CompletionResult]::new('--json', '--json', 'ParameterName', 'Output as JSON')
             ) + $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
         }
@@ -601,8 +601,8 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
         'config' {
             # Config options
             @(
-                [CompletionResult]::new('--init', '--init', 'ParameterName', 'Initialize config')
-                [CompletionResult]::new('--validate', '--validate', 'ParameterName', 'Validate config')
+                [CompletionResult]::new('--init', '--init', 'ParameterName', 'Initialize config'),
+                [CompletionResult]::new('--validate', '--validate', 'ParameterName', 'Validate config'),
                 [CompletionResult]::new('--show', '--show', 'ParameterName', 'Show config')
             ) + $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
         }
@@ -638,23 +638,23 @@ function getInstallationInstructions(shell: ShellType): string {
       return `# Add to ~/.bashrc or ~/.bash_profile:
 # squizzle completion bash > ~/.bash_completion.d/squizzle
 # Or directly:
-# eval "$(squizzle completion --shell bash)"`
+# eval "$(squizzle completion --shell bash)"`;
       
     case 'zsh':
       return `# Add to ~/.zshrc:
 # squizzle completion --shell zsh > ~/.zsh/completions/_squizzle
-# Ensure ~/.zsh/completions is in your fpath`
+# Ensure ~/.zsh/completions is in your fpath`;
       
     case 'fish':
       return `# Save to Fish completions directory:
-# squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish`
+# squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish`;
       
     case 'powershell':
       return `# Add to your PowerShell profile:
 # squizzle completion --shell powershell | Out-String | Invoke-Expression
-# To find your profile location: $PROFILE`
+# To find your profile location: \$PROFILE`;
       
     default:
-      return ''
+      return '';
   }
 }
