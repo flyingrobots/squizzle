@@ -48,13 +48,30 @@ describe('MigrationEngine', () => {
     tempDir = await mkdtemp(join(tmpdir(), 'squizzle-test-'))
     
     // Initialize driver with test database
-    driver = createPostgresDriver({
-      host: 'localhost',
-      port: 54336, // Test database port
-      database: 'squizzle_test',
-      user: 'postgres',
-      password: 'testpass'
-    })
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+    
+    if (isCI) {
+      // In CI, parse DATABASE_URL
+      const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
+      const url = new URL(databaseUrl)
+      
+      driver = createPostgresDriver({
+        host: url.hostname,
+        port: parseInt(url.port || '5432'),
+        database: url.pathname.slice(1),
+        user: url.username,
+        password: url.password
+      })
+    } else {
+      // Local development
+      driver = createPostgresDriver({
+        host: 'localhost',
+        port: 54336, // Test database port
+        database: 'squizzle_test',
+        user: 'postgres',
+        password: 'testpass'
+      })
+    }
     
     // Connect to database
     await driver.connect()
