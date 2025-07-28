@@ -10,6 +10,7 @@ import { rollbackCommand } from './commands/rollback'
 import { statusCommand } from './commands/status'
 import { verifyCommand } from './commands/verify'
 import { initCommand } from './commands/init'
+import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
 import { createConfig, loadConfig } from './config'
 import chalk from 'chalk'
@@ -186,6 +187,29 @@ program
       const config = await loadConfig(program.opts().config)
       console.log(JSON.stringify(config, null, 2))
     }
+  })
+
+// Completion command
+program
+  .command('completion')
+  .description('Generate shell completion script')
+  .option('--shell <shell>', 'Shell type (bash, zsh, fish, powershell)', 'bash')
+  .addHelpText('after', `
+Examples:
+  # Generate bash completion
+  $ squizzle completion --shell bash > ~/.bash_completion.d/squizzle
+
+  # Generate zsh completion
+  $ squizzle completion --shell zsh > ~/.zsh/completions/_squizzle
+
+  # Generate fish completion
+  $ squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish
+
+  # Generate PowerShell completion
+  $ squizzle completion --shell powershell >> $PROFILE
+`)
+  .action(async (options) => {
+    await completionCommand(options)
   })
 
 // Parse and execute
