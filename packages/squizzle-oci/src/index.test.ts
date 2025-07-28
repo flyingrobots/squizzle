@@ -360,13 +360,16 @@ describe('OCIStorage', () => {
     it('should handle registry that does not support deletion', async () => {
       let callCount = 0
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
           callCount++
           
-          if (callCount === 1) {
+          // Determine if this is a GET or DELETE request
+          const isDelete = options.method === 'DELETE'
+          
+          if (!isDelete) {
             // GET manifest
             const mockRes = new MockResponse(200, {
               'docker-content-digest': 'sha256:abc123'
@@ -391,13 +394,16 @@ describe('OCIStorage', () => {
     it('should handle insufficient permissions', async () => {
       let callCount = 0
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
           callCount++
           
-          if (callCount === 1) {
+          // Determine if this is a GET or DELETE request
+          const isDelete = options.method === 'DELETE'
+          
+          if (!isDelete) {
             // GET manifest
             const mockRes = new MockResponse(200, {
               'docker-content-digest': 'sha256:abc123'
@@ -451,27 +457,30 @@ describe('OCIStorage', () => {
     })
 
     it('should throw error if deletion verification fails', { timeout: 10000 }, async () => {
-      let callCount = 0
+      let getCallCount = 0
+      let deleteCallCount = 0
+      let headCallCount = 0
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
-          callCount++
-          
-          if (callCount === 1) {
+          if (options.method === 'GET') {
+            getCallCount++
             // GET manifest
             const mockRes = new MockResponse(200, {
               'docker-content-digest': 'sha256:abc123'
             })
             callback(mockRes)
             mockRes.simulateData(JSON.stringify({ layers: [] }))
-          } else if (callCount === 2) {
+          } else if (options.method === 'DELETE') {
+            deleteCallCount++
             // DELETE succeeds
             const mockRes = new MockResponse(202)
             callback(mockRes)
             mockRes.simulateData('')
-          } else if (callCount === 3) {
+          } else if (options.method === 'HEAD') {
+            headCallCount++
             // HEAD still returns 200 (not deleted)
             const mockRes = new MockResponse(200)
             callback(mockRes)
