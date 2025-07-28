@@ -45,3 +45,9 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Obsidian
+.obsidian/
+
+# Legacy
+**/squizzle*legacy*
