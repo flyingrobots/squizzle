@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "audits/v0.1.0-ship-blockers.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "README"
+              "title": "v0.1.0-ship-blockers"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "README.md",
+                "file": "audits/v0.1.0-ship-blockers.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for README"
+              "title": "Backlinks for v0.1.0-ship-blockers"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "README.md",
+                "file": "audits/v0.1.0-ship-blockers.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from README"
+              "title": "Outgoing links from v0.1.0-ship-blockers"
             }
           },
           {
@@ -142,13 +142,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "README.md",
+                "file": "audits/v0.1.0-ship-blockers.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of README"
+              "title": "Outline of v0.1.0-ship-blockers"
             }
           }
         ]
@@ -169,5 +169,42 @@
     }
   },
   "active": "5c92f903b565bc31",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18360",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18359",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18358",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18357",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18356",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18355",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18354",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18353",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18352",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18351",
+    "packages/squizzle-core/test/infra/volumes/db/data/base/16384/18350",
+    "docs/guides/shell-completions.md",
+    "docs/guides/error-recovery.md",
+    "INSTRUCTIONS.md",
+    "operation-strike-teams/echo-docs-devex.md",
+    "operation-strike-teams/delta-core-security.md",
+    "operation-strike-teams/charlie-cli-build.md",
+    "operation-strike-teams/bravo-testing-infra.md",
+    "operation-strike-teams/alpha-storage-registry.md",
+    "operation-strike-teams/README.md",
+    "README.md",
+    "audits/v0.1.0-ship-blockers.md",
+    "docs/decisions/system-init-bundle.md",
+    "packages/squizzle-core/test/README.md",
+    "packages/squizzle-core/node_modules/chownr/README.md",
+    "packages/squizzle-core/node_modules/chownr/LICENSE.md",
+    "packages/squizzle-core/node_modules/@isaacs/fs-minipass/node_modules/minipass/README.md",
+    "packages/squizzle-core/node_modules/@isaacs/fs-minipass/README.md",
+    "packages/squizzle-core/node_modules/minizlib/node_modules/minipass/README.md",
+    "packages/squizzle-core/node_modules/minizlib/README.md",
+    "packages/squizzle-core/node_modules/tar/node_modules/minipass/README.md",
+    "packages/squizzle-core/node_modules/tar/README.md",
+    "packages/squizzle-core/node_modules/@types/tar/README.md",
+    "packages/squizzle-core/node_modules/minipass/README.md",
+    "packages/squizzle-core/node_modules/yallist/README.md",
+    "packages/squizzle-core/node_modules/yallist/LICENSE.md"
+  ]
 }
