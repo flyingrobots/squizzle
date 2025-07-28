@@ -4,6 +4,8 @@ import pLimit from 'p-limit'
 import * as tar from 'tar'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { 
   DatabaseDriver, 
   ArtifactStorage, 
@@ -23,6 +25,7 @@ export interface EngineOptions {
   storage: ArtifactStorage
   security?: SecurityProvider
   logger?: Logger
+  autoInit?: boolean // Enable/disable auto-initialization of system tables
 }
 
 export class MigrationEngine {
@@ -30,16 +33,21 @@ export class MigrationEngine {
   private storage: ArtifactStorage
   private security?: SecurityProvider
   private logger: Logger
+  private autoInit: boolean
 
   constructor(options: EngineOptions) {
     this.driver = options.driver
     this.storage = options.storage
     this.security = options.security
     this.logger = options.logger || new Logger()
+    this.autoInit = options.autoInit !== false // Default to true
   }
 
   async apply(version: Version, options: MigrationOptions = {}): Promise<void> {
     this.logger.info(`Applying version ${version}`, { version, options })
+    
+    // Check and initialize system tables if needed
+    await this.ensureSystemTables()
     
     // Acquire distributed lock
     const unlock = await this.driver.lock(`squizzle:apply:${version}`, options.timeout)
@@ -380,5 +388,36 @@ export class MigrationEngine {
     )
     
     await Promise.all(tasks)
+  }
+
+  private async ensureSystemTables(): Promise<void> {
+    try {
+      // Try to query the versions table
+      await this.driver.query('SELECT 1 FROM squizzle_versions LIMIT 1')
+      // If successful, tables exist
+      return
+    } catch (error) {
+      // Tables don't exist
+      if (!this.autoInit) {
+        throw new MigrationError(
+          'Squizzle system tables not found. Run "squizzle init:db" to initialize the database.'
+        )
+      }
+      
+      this.logger.warn('System tables missing, initializing...')
+      
+      try {
+        // Read and execute system SQL
+        const systemSqlPath = join(__dirname, '../sql/system/v1.0.0.sql')
+        const systemSql = readFileSync(systemSqlPath, 'utf-8')
+        
+        await this.driver.execute(systemSql)
+        this.logger.info('System tables created successfully')
+      } catch (initError) {
+        throw new MigrationError(
+          `Failed to auto-initialize system tables: ${initError}. Run "squizzle init:db" manually.`
+        )
+      }
+    }
   }
 }
