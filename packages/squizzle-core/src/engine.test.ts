@@ -226,6 +226,115 @@ describe('MigrationEngine', () => {
     })
   })
 
+  describe('systemTables', () => {
+    it('should auto-initialize system tables when missing', async () => {
+      // Drop system tables to simulate fresh database
+      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      
+      // Create engine with autoInit enabled (default)
+      const autoEngine = new MigrationEngine({
+        driver,
+        storage: new FilesystemStorage(join(tempDir, 'artifacts')),
+        security: new LocalSecurityProvider('test-secret')
+      })
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = autoEngine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should auto-create system tables
+      await expect(autoEngine.apply(version)).resolves.not.toThrow()
+      
+      // Verify system tables were created
+      const tables = await driver.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+      `)
+      expect(tables).toHaveLength(1)
+      
+      // Verify system version was recorded
+      const systemVersions = await driver.query(`
+        SELECT version, is_system 
+        FROM squizzle_versions 
+        WHERE is_system = true
+      `)
+      expect(systemVersions).toHaveLength(1)
+      expect(systemVersions[0].version).toBe('system-v1.0.0')
+    })
+
+    it('should throw error when system tables missing and autoInit disabled', async () => {
+      // Drop system tables to simulate fresh database
+      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      
+      // Create engine with autoInit disabled
+      const noAutoEngine = new MigrationEngine({
+        driver,
+        storage: new FilesystemStorage(join(tempDir, 'artifacts')),
+        security: new LocalSecurityProvider('test-secret'),
+        autoInit: false
+      })
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = noAutoEngine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should throw error about missing system tables
+      await expect(noAutoEngine.apply(version))
+        .rejects.toThrow('Squizzle system tables not found. Run "squizzle init:db" to initialize the database.')
+      
+      // Verify system tables were NOT created
+      const tables = await driver.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+      `)
+      expect(tables).toHaveLength(0)
+    })
+
+    it('should not reinitialize when system tables already exist', async () => {
+      // Ensure system tables exist
+      await setupTestDatabase()
+      
+      // Record a dummy system version to track if tables get recreated
+      await driver.execute(`
+        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, is_system)
+        VALUES ('test-marker', 'test', 'test', '{}', false)
+      `)
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = engine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should work without reinitializing
+      await engine.apply(version)
+      
+      // Verify our test marker is still there
+      const markers = await driver.query(`
+        SELECT version FROM squizzle_versions WHERE version = 'test-marker'
+      `)
+      expect(markers).toHaveLength(1)
+    })
+  })
+
   describe('verifyIntegrity', () => {
     it('should pass with valid manifest checksum', async () => {
       const version = '1.0.0'
