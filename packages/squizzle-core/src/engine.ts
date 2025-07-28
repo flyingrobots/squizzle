@@ -81,7 +81,7 @@ export class MigrationEngine {
 
       await this.driver.transaction(async (tx) => {
         await this.runMigrations(tx, sorted, options)
-        await tx.recordVersion(version, manifest, true)
+        await tx.recordVersion(version, manifest!, true)
       })
       
       this.logger.info(`Successfully applied version ${version}`)
