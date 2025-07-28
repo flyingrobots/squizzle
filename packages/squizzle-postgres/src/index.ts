@@ -1,4 +1,4 @@
-import { Client, Pool, PoolClient } from 'pg'
+import { Pool, PoolClient } from 'pg'
 import advisoryLock from 'advisory-lock'
 import { 
   DatabaseDriver, 
@@ -170,7 +170,7 @@ export class PostgresDriver implements DatabaseDriver {
     ])
   }
 
-  async lock(key: string, timeout: number = 60000): Promise<() => Promise<void>> {
+  async lock(key: string, _timeout: number = 60000): Promise<() => Promise<void>> {
     // Get connection string from pool config
     const config = (this.pool as any).options || this.pool
     const connectionString = this.options.connectionString || 

@@ -146,7 +146,7 @@ describe('OCIStorage', () => {
     it('should handle authentication challenge', async () => {
       let callCount = 0
       
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
@@ -157,17 +157,17 @@ describe('OCIStorage', () => {
             const mockRes = new MockResponse(401, {
               'www-authenticate': 'Bearer realm="https://auth.example.com/token",service="registry.example.com",scope="repository:test-repo:pull"'
             })
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData('')
           } else if (callCount === 2) {
             // Auth token request
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
           } else {
             // Retry with token
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({
               name: 'test-repo',
               tags: ['v1.0.0']
@@ -184,8 +184,8 @@ describe('OCIStorage', () => {
       expect(https.request).toHaveBeenCalledTimes(3)
       
       // Check auth header was added
-      const lastCall = vi.mocked(https.request).mock.calls[2][0]
-      expect(lastCall.headers.Authorization).toBe('Bearer test-token')
+      const lastCall = vi.mocked(https.request).mock.calls[2]?.[0]
+      expect((lastCall as any)?.headers?.Authorization).toBe('Bearer test-token')
     })
 
     it('should throw StorageError on HTTP errors', async () => {
@@ -207,7 +207,7 @@ describe('OCIStorage', () => {
     it('should handle network errors', async () => {
       const mockReq = new MockRequest()
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
         setImmediate(() => {
           mockReq.emit('error', new Error('Network error'))
         })
@@ -221,8 +221,8 @@ describe('OCIStorage', () => {
     it('should handle request timeout', async () => {
       const mockReq = new MockRequest()
       
-      vi.mocked(https.request).mockImplementation((_options: any, callback: any) => {
-        mockReq.setTimeout.mockImplementation((timeout, cb) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
+        mockReq.setTimeout.mockImplementation((_timeout, cb) => {
           // Simulate timeout
           setImmediate(() => cb())
         })
@@ -320,9 +320,9 @@ describe('OCIStorage', () => {
       expect(https.request).toHaveBeenCalledTimes(3)
       
       // Check DELETE was called with digest
-      const deleteCall = vi.mocked(https.request).mock.calls[1][0]
-      expect(deleteCall.method).toBe('DELETE')
-      expect(deleteCall.path).toBe('/v2/test-repo/manifests/sha256:abc123')
+      const deleteCall = vi.mocked(https.request).mock.calls[1]?.[0]
+      expect((deleteCall as any)?.method).toBe('DELETE')
+      expect((deleteCall as any)?.path).toBe('/v2/test-repo/manifests/sha256:abc123')
     })
 
     it('should throw error when version not found', async () => {
@@ -504,9 +504,9 @@ describe('OCIStorage', () => {
         // Expected to throw
       }
 
-      const call = vi.mocked(https.request).mock.calls[0][0]
-      expect(call.headers.Accept).toContain('application/vnd.docker.distribution.manifest.v2+json')
-      expect(call.headers.Accept).toContain('application/vnd.oci.image.manifest.v1+json')
+      const call = vi.mocked(https.request).mock.calls[0]?.[0]
+      expect((call as any)?.headers?.Accept).toContain('application/vnd.docker.distribution.manifest.v2+json')
+      expect((call as any)?.headers?.Accept).toContain('application/vnd.oci.image.manifest.v1+json')
     })
   })
 
@@ -527,7 +527,7 @@ describe('OCIStorage', () => {
 
       // Trigger auth by making request that returns 401
       let callCount = 0
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
@@ -537,17 +537,17 @@ describe('OCIStorage', () => {
             const mockRes = new MockResponse(401, {
               'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
             })
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData('')
           } else if (callCount === 2) {
             // Auth request should have basic auth
-            expect(options.headers?.Authorization).toBe(`Basic ${Buffer.from('user:pass').toString('base64')}`)
+            expect((_options as any).headers?.Authorization).toBe(`Basic ${Buffer.from('user:pass').toString('base64')}`)
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
           } else {
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
           }
         })
@@ -566,7 +566,7 @@ describe('OCIStorage', () => {
       })
 
       let callCount = 0
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
@@ -576,19 +576,19 @@ describe('OCIStorage', () => {
             const mockRes = new MockResponse(401, {
               'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
             })
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData('')
           } else if (callCount === 2) {
             // Should use explicit credentials
-            expect(options.headers?.Authorization).toBe(
+            expect((_options as any).headers?.Authorization).toBe(
               `Basic ${Buffer.from('explicit-user:explicit-pass').toString('base64')}`
             )
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ token: 'test-token' }))
           } else {
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
           }
         })
@@ -602,31 +602,31 @@ describe('OCIStorage', () => {
     it('should cache auth tokens', async () => {
       let authCallCount = 0
       
-      vi.mocked(https.request).mockImplementation((options: any, callback: any) => {
+      vi.mocked(https.request).mockImplementation((_options: any, _callback: any) => {
         const mockReq = new MockRequest()
         
         setImmediate(() => {
-          const isAuthRequest = options.hostname === 'auth.example.com'
+          const isAuthRequest = (_options as any).hostname === 'auth.example.com'
           
           if (isAuthRequest) {
             authCallCount++
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ 
               token: 'test-token',
               expires_in: 300
             }))
-          } else if (options.headers?.Authorization) {
+          } else if ((_options as any).headers?.Authorization) {
             // Regular request with auth
             const mockRes = new MockResponse(200)
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData(JSON.stringify({ name: 'test-repo', tags: [] }))
           } else {
             // Initial 401
             const mockRes = new MockResponse(401, {
               'www-authenticate': 'Bearer realm="https://auth.example.com/token"'
             })
-            callback(mockRes)
+            _callback(mockRes)
             mockRes.simulateData('')
           }
         })

@@ -49,5 +49,4 @@ jobs:
           
       - run: pnpm lint
       
-      # TODO: Re-enable typecheck after fixing TypeScript errors
-      # - run: pnpm typecheck
+      - run: pnpm typecheck

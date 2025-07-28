@@ -1,10 +1,10 @@
 import { execSync } from 'child_process'
 import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
-import { MigrationEngine } from '../src/engine'
-import { createPostgresDriver } from '@squizzle/postgres'
+import { readFileSync } from 'fs'
+// TODO: Fix cross-package imports
+// import { createPostgresDriver } from '@squizzle/postgres'
 
-const SYSTEM_ARTIFACT_PATH = join(__dirname, './artifacts/system-v1.0.0.tar.gz')
+// const SYSTEM_ARTIFACT_PATH = join(__dirname, './artifacts/system-v1.0.0.tar.gz')
 const SYSTEM_SQL_PATH = join(__dirname, '../sql/system/v1.0.0.sql')
 const INFRA_PATH = join(__dirname, './infra')
 

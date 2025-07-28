@@ -11,8 +11,11 @@ export function isValidVersion(version: string): version is Version {
 
 export function compareVersions(a: Version, b: Version): number {
   const parseVersion = (v: string) => {
-    const [main, prerelease] = v.split('-')
-    const [major, minor, patch] = main.split('.').map(Number)
+    const [main = '', prerelease] = v.split('-')
+    const parts = main.split('.')
+    const major = Number(parts[0] || 0)
+    const minor = Number(parts[1] || 0)
+    const patch = Number(parts[2] || 0)
     return { major, minor, patch, prerelease }
   }
 
@@ -35,8 +38,11 @@ export function compareVersions(a: Version, b: Version): number {
 }
 
 export function getNextVersion(current: Version, bump: 'major' | 'minor' | 'patch' = 'patch'): Version {
-  const [main] = current.split('-')
-  const [major, minor, patch] = main.split('.').map(Number)
+  const [main = ''] = current.split('-')
+  const parts = main.split('.')
+  const major = Number(parts[0] || 0)
+  const minor = Number(parts[1] || 0)
+  const patch = Number(parts[2] || 0)
 
   switch (bump) {
     case 'major':

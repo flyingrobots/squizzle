@@ -1,5 +1,4 @@
 import { readFile, writeFile, access } from 'fs/promises'
-import { join } from 'path'
 import { parse, stringify } from 'yaml'
 import { z } from 'zod'
 import inquirer from 'inquirer'
