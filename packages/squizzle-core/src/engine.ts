@@ -222,19 +222,39 @@ export class MigrationEngine {
   }
 
   private async verifyIntegrity(artifact: Buffer, manifest: Manifest): Promise<void> {
-    // The manifest checksum is calculated from file paths and their checksums,
-    // not from the artifact itself. We'll verify individual file checksums
-    // when we extract them. For now, just verify the manifest structure.
+    // The manifest checksum is calculated from the sorted file paths and their checksums.
+    // Individual file checksums are verified during extraction in extractMigrations.
+    // Here we verify that the manifest checksum matches what we calculate from the files.
     
-    // TODO: Implement proper file extraction and checksum verification
-    // This would involve:
-    // 1. Extract files from the tarball
-    // 2. Calculate checksum of each file
-    // 3. Verify against manifest.files[].checksum
-    // 4. Recalculate manifest checksum from files to verify
+    // Calculate manifest checksum from files
+    const sortedFiles = [...manifest.files].sort((a, b) => a.path.localeCompare(b.path))
+    const checksumData = sortedFiles
+      .map(file => `${file.path}:${file.checksum}`)
+      .join('\n')
     
-    // For now, skip artifact checksum verification in tests
-    return
+    const calculatedChecksum = createHash(manifest.checksumAlgorithm || 'sha256')
+      .update(checksumData)
+      .digest('hex')
+    
+    // Use constant-time comparison to prevent timing attacks
+    if (!this.constantTimeEqual(calculatedChecksum, manifest.checksum)) {
+      throw new ChecksumError(
+        `Manifest checksum mismatch: expected ${manifest.checksum}, got ${calculatedChecksum}`
+      )
+    }
+  }
+
+  private constantTimeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+    
+    let result = 0
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+    }
+    
+    return result === 0
   }
 
   private async extractMigrations(artifact: Buffer, manifest: Manifest): Promise<Migration[]> {

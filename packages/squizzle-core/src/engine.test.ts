@@ -225,5 +225,69 @@ describe('MigrationEngine', () => {
       expect(status.available).toContain(version)
     })
   })
+
+  describe('verifyIntegrity', () => {
+    it('should pass with valid manifest checksum', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Verify integrity should not throw
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest)).resolves.not.toThrow()
+    })
+
+    it('should throw ChecksumError with invalid manifest checksum', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Tamper with manifest checksum
+      manifest.checksum = 'invalid_checksum_0000000000000000000000000000000000000000000000000000'
+      
+      // Should throw ChecksumError
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest))
+        .rejects.toThrow('Manifest checksum mismatch')
+    })
+
+    it('should handle different checksum algorithms', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Change algorithm to sha512
+      manifest.checksumAlgorithm = 'sha512'
+      // Recalculate checksum with sha512
+      const { createHash } = await import('crypto')
+      const sortedFiles = [...manifest.files].sort((a, b) => a.path.localeCompare(b.path))
+      const checksumData = sortedFiles
+        .map(file => `${file.path}:${file.checksum}`)
+        .join('\n')
+      manifest.checksum = createHash('sha512').update(checksumData).digest('hex')
+      
+      // Should not throw
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest)).resolves.not.toThrow()
+    })
+
+    it('should use constant-time comparison for checksums', async () => {
+      // Test that constantTimeEqual works correctly
+      const equal1 = engine['constantTimeEqual']('abc123', 'abc123')
+      expect(equal1).toBe(true)
+      
+      const equal2 = engine['constantTimeEqual']('abc123', 'abc124')
+      expect(equal2).toBe(false)
+      
+      const equal3 = engine['constantTimeEqual']('abc', 'abcd')
+      expect(equal3).toBe(false)
+    })
+  })
 })
 
