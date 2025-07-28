@@ -269,9 +269,9 @@ LABEL io.squizzle.checksum="${manifest.checksum}"
       
       try {
         // Write files
-        require('fs').writeFileSync(`${tempDir}/Dockerfile`, dockerfile)
-        require('fs').writeFileSync(`${tempDir}/artifact.tar.gz`, artifact)
-        require('fs').writeFileSync(`${tempDir}/manifest.json`, JSON.stringify(manifest))
+        fs.writeFileSync(`${tempDir}/Dockerfile`, dockerfile)
+        fs.writeFileSync(`${tempDir}/artifact.tar.gz`, artifact)
+        fs.writeFileSync(`${tempDir}/manifest.json`, JSON.stringify(manifest))
         
         // Build image
         execSync(`docker build -t ${tag} ${tempDir}`, { stdio: 'pipe' })
@@ -302,11 +302,11 @@ LABEL io.squizzle.checksum="${manifest.checksum}"
       try {
         // Extract artifact
         execSync(`docker cp ${containerId}:/artifact.tar.gz /tmp/artifact.tar.gz`)
-        const artifact = require('fs').readFileSync('/tmp/artifact.tar.gz')
+        const artifact = fs.readFileSync('/tmp/artifact.tar.gz')
         
         // Extract manifest
         execSync(`docker cp ${containerId}:/manifest.json /tmp/manifest.json`)
-        const manifest = JSON.parse(require('fs').readFileSync('/tmp/manifest.json', 'utf-8'))
+        const manifest = JSON.parse(fs.readFileSync('/tmp/manifest.json', 'utf-8'))
         
         return { artifact, manifest }
       } finally {
@@ -536,15 +536,15 @@ LABEL io.squizzle.checksum="${manifest.checksum}"
 // Filesystem storage for local development
 export class FilesystemStorage implements ArtifactStorage {
   constructor(private basePath: string) {
-    require('fs').mkdirSync(basePath, { recursive: true })
+    fs.mkdirSync(basePath, { recursive: true })
   }
 
   async push(version: Version, artifact: Buffer, manifest: Manifest): Promise<string> {
     const artifactPath = `${this.basePath}/squizzle-v${version}.tar.gz`
     const manifestPath = `${this.basePath}/squizzle-v${version}.manifest.json`
     
-    require('fs').writeFileSync(artifactPath, artifact)
-    require('fs').writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+    fs.writeFileSync(artifactPath, artifact)
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
     
     return artifactPath
   }
@@ -553,23 +553,23 @@ export class FilesystemStorage implements ArtifactStorage {
     const artifactPath = `${this.basePath}/squizzle-v${version}.tar.gz`
     const manifestPath = `${this.basePath}/squizzle-v${version}.manifest.json`
     
-    if (!require('fs').existsSync(artifactPath)) {
+    if (!fs.existsSync(artifactPath)) {
       throw new StorageError(`Artifact not found: ${version}`)
     }
     
-    const artifact = require('fs').readFileSync(artifactPath)
-    const manifest = JSON.parse(require('fs').readFileSync(manifestPath, 'utf-8'))
+    const artifact = fs.readFileSync(artifactPath)
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
     
     return { artifact, manifest }
   }
 
   async exists(version: Version): Promise<boolean> {
     const artifactPath = `${this.basePath}/squizzle-v${version}.tar.gz`
-    return require('fs').existsSync(artifactPath)
+    return fs.existsSync(artifactPath)
   }
 
   async list(): Promise<Version[]> {
-    const files = require('fs').readdirSync(this.basePath)
+    const files = fs.readdirSync(this.basePath)
     return files
       .filter((f: string) => f.startsWith('squizzle-v') && f.endsWith('.tar.gz'))
       .map((f: string) => f.replace('squizzle-v', '').replace('.tar.gz', '') as Version)
@@ -580,13 +580,13 @@ export class FilesystemStorage implements ArtifactStorage {
     const artifactPath = `${this.basePath}/squizzle-v${version}.tar.gz`
     const manifestPath = `${this.basePath}/squizzle-v${version}.manifest.json`
     
-    require('fs').unlinkSync(artifactPath)
-    require('fs').unlinkSync(manifestPath)
+    fs.unlinkSync(artifactPath)
+    fs.unlinkSync(manifestPath)
   }
 
   async getManifest(version: Version): Promise<Manifest> {
     const manifestPath = `${this.basePath}/squizzle-v${version}.manifest.json`
-    return JSON.parse(require('fs').readFileSync(manifestPath, 'utf-8'))
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
   }
 }
 

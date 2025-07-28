@@ -31,7 +31,26 @@ export function compareVersions(a: Version, b: Version): number {
   if (!va.prerelease && vb.prerelease) return 1
   if (va.prerelease && !vb.prerelease) return -1
   if (va.prerelease && vb.prerelease) {
-    return va.prerelease.localeCompare(vb.prerelease)
+    // Split prerelease into parts and compare
+    const partsA = va.prerelease.split('.')
+    const partsB = vb.prerelease.split('.')
+    
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const partA = partsA[i] || ''
+      const partB = partsB[i] || ''
+      
+      // If both parts are numeric, compare as numbers
+      const numA = Number(partA)
+      const numB = Number(partB)
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        if (numA !== numB) return numA - numB
+      } else {
+        // Otherwise compare as strings
+        const cmp = partA.localeCompare(partB)
+        if (cmp !== 0) return cmp
+      }
+    }
   }
 
   return 0
