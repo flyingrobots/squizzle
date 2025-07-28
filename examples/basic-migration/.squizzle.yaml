@@ -1,0 +1,21 @@
+version: '2.0'
+
+storage:
+  type: filesystem
+  path: ./migrations
+
+environments:
+  development:
+    database:
+      host: localhost
+      port: 5432
+      database: example_db
+      user: postgres
+      password: postgres
+
+  production:
+    database:
+      connectionString: ${DATABASE_URL}
+
+migrations:
+  directory: ./sql

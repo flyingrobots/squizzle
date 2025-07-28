@@ -1,0 +1,45 @@
+{
+    "name": "squizzle",
+    "author": "J. Kirby Ross <james@flyingrobots.dev> (https://github.com/flyingrobots)",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+ssh://github.com/flyingrobots/squizzle.git"
+    },
+    "version": "2.0.0",
+    "description": "Immutable Database Version Management",
+    "keywords": [
+        "database",
+        "migration",
+        "version-control",
+        "postgres",
+        "immutable",
+        "supabase",
+        "drizzle",
+        "cli",
+        "sql",
+        "migrations",
+        "bundle",
+        "versioning",
+        "schema",
+        "postgresql",
+        "drizzle-orm",
+        "drizzle-kit"
+    ],
+    "packageManager": "pnpm@10.13.1",
+    "scripts": {
+        "build": "pnpm -r build",
+        "test": "pnpm -r test",
+        "test:integration": "docker-compose -f docker-compose.test.yml up --abort-on-container-exit",
+        "lint": "eslint packages/*/src",
+        "typecheck": "tsc --noEmit",
+        "release": "changeset publish"
+    },
+    "devDependencies": {
+        "@changesets/cli": "^2.27.1",
+        "@types/node": "^20.10.0",
+        "eslint": "^9.0.0",
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0"
+    }
+}
