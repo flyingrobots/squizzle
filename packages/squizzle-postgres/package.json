@@ -1,12 +1,12 @@
 {
   "name": "@squizzle/postgres",
-  "version": "2.0.0",
+  "version": "0.0.0",
   "description": "PostgreSQL driver for SQUIZZLE migration engine",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@squizzle/core": "workspace:*",
