@@ -14,7 +14,7 @@ import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
 import { createConfig, loadConfig } from './config'
 import chalk from 'chalk'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
 // Load environment variables
@@ -48,6 +48,7 @@ program
 program
   .command('init:db')
   .alias('db:init')
+  .alias('init')
   .description('Initialize Squizzle system tables in the database')
   .option('--force', 'Recreate tables even if they exist')
   .option('--dry-run', 'Show what would be created')
@@ -91,7 +92,7 @@ program
       logger.info('Creating Squizzle system tables...')
       await driver.execute(systemSql)
       
-      console.log(chalk.green('✓ System tables initialized successfully'))
+      console.log(chalk.green('✓ System tables initialized'))
     } catch (error) {
       console.error(chalk.red(`Failed to initialize system tables: ${error}`))
       process.exit(1)
@@ -201,6 +202,44 @@ program
     })
     
     await verifyCommand(engine, version, { ...options, env })
+  })
+
+// Push command
+program
+  .command('push <version>')
+  .description('Push a built version to storage')
+  .option('--registry <url>', 'override registry URL')
+  .option('--repository <name>', 'override repository name')
+  .action(async (version, options) => {
+    const config = await loadConfig(program.opts().config)
+    const storage = createOCIStorage({
+      ...config.storage,
+      ...(options.registry && { registry: options.registry }),
+      ...(options.repository && { repository: options.repository })
+    })
+    
+    try {
+      // Read the built artifact from disk
+      const artifactPath = join(process.cwd(), `squizzle-v${version}.tar.gz`)
+      const manifestPath = join(process.cwd(), `squizzle-v${version}.manifest.json`)
+      
+      if (!existsSync(artifactPath)) {
+        throw new Error(`Artifact not found: ${artifactPath}. Run 'squizzle build ${version}' first.`)
+      }
+      
+      if (!existsSync(manifestPath)) {
+        throw new Error(`Manifest not found: ${manifestPath}. Run 'squizzle build ${version}' first.`)
+      }
+      
+      const artifact = readFileSync(artifactPath)
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+      
+      await storage.push(version, artifact, manifest)
+      console.log(chalk.green(`✓ Pushed version ${version} to storage`))
+    } catch (error) {
+      console.error(chalk.red(`Failed to push to storage: ${error}`))
+      process.exit(1)
+    }
   })
 
 // List command
