@@ -115,12 +115,14 @@ program
   .option('--registry <registry>', 'override OCI registry URL')
   .option('--repository <repository>', 'override OCI repository name')
   .option('--skip-push', 'skip pushing to storage (local build only)')
+  .option('--verbose', 'show detailed file information')
   .addHelpText('after', `
 Examples:
   $ squizzle build 1.0.0 --notes "Initial schema"
   $ squizzle build 1.1.0 --notes "Add user tables" --author "John Doe"
   $ squizzle build 2.0.0 --notes "Major refactor" --tag breaking --tag v2
-  $ squizzle build 1.2.3 --dry-run`)
+  $ squizzle build 1.2.3 --dry-run
+  $ squizzle build 1.0.1 --dry-run --verbose`)
   .action(async (version: string, options: any) => {
     const config = await loadConfig(program.opts().config)
     await buildCommand(version, { ...options, config })
@@ -261,7 +263,7 @@ Examples:
       console.log(JSON.stringify(versions, null, 2))
     } else {
       console.log(chalk.bold('\nAvailable versions:'))
-      versions.forEach(v => console.log(`  • ${v}`))
+      versions.forEach((v: string) => console.log(`  • ${v}`))
     }
   })
 
