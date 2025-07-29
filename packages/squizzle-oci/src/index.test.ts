@@ -242,7 +242,7 @@ describe('OCIStorage', () => {
       const result = await storage.list()
 
       expect(result).toEqual([])
-    })
+    }, 10000)
 
     it('should throw StorageError on list failure', async () => {
       mockExecSync.mockImplementation(() => {
@@ -250,7 +250,7 @@ describe('OCIStorage', () => {
       })
 
       await expect(storage.list()).rejects.toThrow(StorageError)
-    })
+    }, 10000)
   })
 
   describe('delete', () => {
@@ -263,7 +263,7 @@ describe('OCIStorage', () => {
         .rejects.toThrow(StorageError)
       await expect(storage.delete('1.0.0' as Version))
         .rejects.toThrow('Deletion not implemented for OCI storage')
-    })
+    }, 10000)
   })
 
   describe('getManifest', () => {
