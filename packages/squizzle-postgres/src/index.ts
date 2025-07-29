@@ -122,7 +122,8 @@ export class PostgresDriver implements DatabaseDriver {
         success,
         error,
         rollback_of
-      FROM squizzle_versions
+      FROM squizzle.squizzle_versions
+      WHERE NOT is_system
       ORDER BY applied_at DESC
     `
     
@@ -142,7 +143,7 @@ export class PostgresDriver implements DatabaseDriver {
       appliedBy: row.applied_by,
       checksum: row.checksum,
       success: row.success,
-      error: row.error || null,
+      error: row.error || undefined,
       rollbackOf: row.rollback_of ? row.rollback_of as Version : undefined
     }))
   }
@@ -154,7 +155,7 @@ export class PostgresDriver implements DatabaseDriver {
     error?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO squizzle_versions (
+      INSERT INTO squizzle.squizzle_versions (
         version, 
         checksum, 
         applied_by,
@@ -207,7 +208,9 @@ export class PostgresDriver implements DatabaseDriver {
 
   private async ensureVersionTable(): Promise<void> {
     const sql = `
-      CREATE TABLE IF NOT EXISTS squizzle_versions (
+      CREATE SCHEMA IF NOT EXISTS squizzle;
+      
+      CREATE TABLE IF NOT EXISTS squizzle.squizzle_versions (
         id SERIAL PRIMARY KEY,
         version VARCHAR(50) NOT NULL UNIQUE,
         checksum VARCHAR(128) NOT NULL,
@@ -216,14 +219,18 @@ export class PostgresDriver implements DatabaseDriver {
         success BOOLEAN NOT NULL DEFAULT true,
         error TEXT,
         rollback_of VARCHAR(50),
-        manifest JSONB NOT NULL
+        manifest JSONB NOT NULL,
+        is_system BOOLEAN DEFAULT false
       );
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at 
-        ON squizzle_versions(applied_at DESC);
+        ON squizzle.squizzle_versions(applied_at DESC);
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success 
-        ON squizzle_versions(success);
+        ON squizzle.squizzle_versions(success);
+      
+      CREATE INDEX IF NOT EXISTS idx_squizzle_versions_is_system 
+        ON squizzle.squizzle_versions(is_system);
     `
     
     await this.execute(sql)

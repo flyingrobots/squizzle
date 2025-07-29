@@ -23,13 +23,14 @@ squizzle init
 ```
 
 Creates:
+
 - `.squizzle.yaml` configuration file
 - `db/` directory structure
 - Version tracking table in database
 
 ### `squizzle build <version>`
 
-Build a new migration version:
+Build a new migration version and push to storage:
 
 ```bash
 squizzle build 1.0.0 --notes "Add user authentication"
@@ -39,12 +40,45 @@ squizzle build 1.0.0 --notes "Add user authentication"
 #   -a, --author <author>   Version author
 #   -t, --tag <tags...>     Version tags
 #   --dry-run              Simulate build without creating artifacts
+#   --registry <registry>   Override OCI registry URL
+#   --repository <repo>     Override OCI repository name
+#   --skip-push            Skip pushing to storage (local build only)
 ```
 
-Bundles:
-- Drizzle migrations from `db/drizzle/`
-- Custom SQL from `db/custom/`
+Features:
+
+- Bundles Drizzle migrations from `db/drizzle/`
+- Includes custom SQL from `db/custom/`
 - Creates immutable tarball with manifest
+- Pushes to configured OCI registry
+- Verifies successful upload
+- Reports upload speed and size
+
+#### Storage Configuration
+
+The build command supports flexible storage configuration with precedence:
+
+1. **CLI options** (`--registry`, `--repository`) - Highest priority
+2. **Environment variables** (`SQUIZZLE_REGISTRY`, `SQUIZZLE_REPOSITORY`)
+3. **Config file** (`.squizzle.yaml`) - Default
+
+Examples:
+
+```bash
+# Use config file settings
+squizzle build 1.0.0
+
+# Override registry via CLI
+squizzle build 1.0.0 --registry docker.io --repository myorg/myapp
+
+# Override via environment variables
+export SQUIZZLE_REGISTRY=ghcr.io
+export SQUIZZLE_REPOSITORY=myorg/myapp
+squizzle build 1.0.0
+
+# Build locally without pushing
+squizzle build 1.0.0 --skip-push
+```
 
 ### `squizzle apply <version>`
 
@@ -147,6 +181,8 @@ custom:
 - `DATABASE_URL` - Database connection string
 - `SQUIZZLE_ENV` - Default environment (overrides -e flag)
 - `SQUIZZLE_CONFIG` - Config file path (overrides -c flag)
+- `SQUIZZLE_REGISTRY` - Override OCI registry URL for storage
+- `SQUIZZLE_REPOSITORY` - Override OCI repository name for storage
 - `NO_COLOR` - Disable colored output
 - `CI` - Enable CI mode (no interactive prompts)
 
@@ -224,6 +260,55 @@ deploy:
     - squizzle apply $CI_COMMIT_SHA --env production
   environment:
     name: production
+```
+
+## Testing
+
+### Unit Tests
+
+Run unit tests for CLI commands:
+
+```bash
+npm test
+```
+
+### Integration Tests
+
+Integration tests require a real OCI registry to test push functionality:
+
+```bash
+# Set test registry credentials
+export SQUIZZLE_TEST_REGISTRY=ghcr.io
+export SQUIZZLE_TEST_REPOSITORY=your-org/squizzle-test
+
+# Login to registry
+docker login ghcr.io
+
+# Run integration tests
+npm test -- build.integration.test.ts
+```
+
+Integration tests will:
+
+- Create temporary test versions (99.99.x)
+- Push artifacts to the configured test registry
+- Verify push, retrieval, and deletion operations
+- Clean up test artifacts after completion
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build TypeScript
+npm run build
+
+# Run in development mode
+npm run dev -- <command>
+
+# Run tests
+npm test
 ```
 
 ## License
