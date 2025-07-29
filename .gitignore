@@ -22,6 +22,10 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
+._*
 
 # Logs
 logs/
@@ -48,6 +52,25 @@ temp/
 
 # Obsidian
 .obsidian/
+.obsidian.vimrc
+
+# TypeScript/JavaScript
+*.tsbuildinfo
+.eslintcache
+.parcel-cache
+.turbo
+
+# Package managers
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnpm-store/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Legacy
 **/squizzle*legacy*

@@ -1,0 +1,43 @@
+# Simplified Squizzle Test Infrastructure
+# Just PostgreSQL with Supabase extensions for testing
+
+name: squizzle-test
+
+services:
+  db:
+    container_name: squizzle-test-db
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    ports:
+      - "54336:5432"
+    volumes:
+      # Schema files
+      - ./volumes/db/00-schema.sql:/docker-entrypoint-initdb.d/migrations/00-schema.sql:Z
+      - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      # PGDATA directory is persisted between restarts
+      - ./volumes/db/data:/var/lib/postgresql/data:Z
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: testpass
+      POSTGRES_PASSWORD: testpass
+      PGDATABASE: squizzle_test
+      POSTGRES_DB: squizzle_test
+    command:
+      [
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal"
+      ]
+
+networks:
+  default:
+    name: squizzle-test-network

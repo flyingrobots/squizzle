@@ -1,6 +1,6 @@
 {
   "name": "@squizzle/cli",
-  "version": "2.0.0",
+  "version": "0.0.0",
   "description": "Command-line interface for SQUIZZLE database migration tool",
   "bin": {
     "squizzle": "./dist/cli.js"
@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
-    "test": "vitest"
+    "test": "vitest run --passWithNoTests",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@squizzle/core": "workspace:*",

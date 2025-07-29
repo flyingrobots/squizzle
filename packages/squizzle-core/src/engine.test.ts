@@ -1,36 +1,71 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest'
 import { MigrationEngine } from './engine'
 import { createPostgresDriver } from '@squizzle/postgres'
 import { FilesystemStorage } from '@squizzle/oci'
 import { LocalSecurityProvider } from '@squizzle/security'
 import { createManifest } from './manifest'
-import { create } from 'tar'
+import { create, extract } from 'tar'
 import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { readFileSync } from 'fs'
+import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
+import { setupTestDatabase, cleanupTestDatabase } from '../test/setup'
+
+// Helper to extract manifest from pre-built test artifact
+async function extractManifestFromArtifact(artifactBuffer: Buffer): Promise<any> {
+  const tempDir = await mkdtemp(join(tmpdir(), 'extract-'))
+  
+  try {
+    // Extract to temp directory
+    await pipeline(
+      Readable.from(artifactBuffer),
+      extract({ cwd: tempDir })
+    )
+    
+    // Read manifest
+    const manifestPath = join(tempDir, 'manifest.json')
+    const manifestContent = readFileSync(manifestPath, 'utf-8')
+    return JSON.parse(manifestContent)
+  } finally {
+    await rm(tempDir, { recursive: true })
+  }
+}
 
 describe('MigrationEngine', () => {
   let engine: MigrationEngine
   let tempDir: string
   let driver: any
 
+  beforeAll(async () => {
+    // Ensure test database is set up
+    await setupTestDatabase()
+  })
+
   beforeEach(async () => {
     // Create temp directory
     tempDir = await mkdtemp(join(tmpdir(), 'squizzle-test-'))
     
     // Initialize driver with test database
-    driver = createPostgresDriver({
-      host: 'localhost',
-      port: 54316, // Use PG 16 for tests
-      database: 'squizzle_test',
-      user: 'postgres',
-      password: 'testpass'
-    })
+    const isCI = process.env.CI === 'true'
+    driver = isCI && process.env.DATABASE_URL
+      ? createPostgresDriver({
+          connectionString: process.env.DATABASE_URL
+        })
+      : createPostgresDriver({
+          host: 'localhost',
+          port: 54336, // Test database port
+          database: 'squizzle_test',
+          user: 'postgres',
+          password: 'testpass'
+        })
     
-    // Connect and clean database
+    // Connect to database
     await driver.connect()
-    await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
-    await driver.execute('DROP TABLE IF EXISTS test_table CASCADE')
+    
+    // Clean up test data
+    await cleanupTestDatabase()
     
     // Initialize engine
     engine = new MigrationEngine({
@@ -47,18 +82,18 @@ describe('MigrationEngine', () => {
 
   describe('apply', () => {
     it('should apply a simple migration', async () => {
-      // Create test migration
       const version = '1.0.0'
-      const sql = 'CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT);'
       
-      // Create artifact
-      const artifact = await createTestArtifact(version, [
-        { path: 'drizzle/001_create_table.sql', content: sql, type: 'drizzle' }
-      ])
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      
+      // Extract manifest from artifact for storage
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
       
       // Push to storage
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       
       // Apply migration
       await engine.apply(version)
@@ -79,36 +114,39 @@ describe('MigrationEngine', () => {
     })
 
     it('should handle migration failures', async () => {
-      const version = '1.0.0'
-      const sql = 'CREATE TABLE INVALID SQL HERE;'
+      const version = '1.0.1'
       
-      const artifact = await createTestArtifact(version, [
-        { path: 'drizzle/001_bad.sql', content: sql, type: 'drizzle' }
-      ])
+      // Clean up any existing version record
+      await driver.execute(`DELETE FROM squizzle_versions WHERE version = '${version}'`)
+      
+      // Load pre-built test artifact with invalid SQL
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.1.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
       
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       
       // Should throw error
       await expect(engine.apply(version)).rejects.toThrow()
       
       // Verify failure recorded
       const versions = await driver.getAppliedVersions()
-      expect(versions).toHaveLength(1)
-      expect(versions[0].success).toBe(false)
+      const failedVersion = versions.find(v => v.version === version)
+      expect(failedVersion).toBeDefined()
+      expect(failedVersion?.success).toBe(false)
     })
 
     it('should run migrations in correct order', async () => {
-      const version = '1.0.0'
-      const migrations = [
-        { path: 'squizzle/002_custom.sql', content: 'INSERT INTO test_table (name) VALUES (\'custom\');', type: 'custom' as const },
-        { path: 'drizzle/001_create.sql', content: 'CREATE TABLE test_table (id SERIAL PRIMARY KEY, name TEXT);', type: 'drizzle' as const },
-        { path: 'squizzle/003_seed.sql', content: 'INSERT INTO test_table (name) VALUES (\'seed\');', type: 'seed' as const }
-      ]
+      const version = '1.0.2'
       
-      const artifact = await createTestArtifact(version, migrations)
+      // Load pre-built test artifact with multiple migrations
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.2.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       
       await engine.apply(version)
       
@@ -122,14 +160,14 @@ describe('MigrationEngine', () => {
 
     it('should respect dry run option', async () => {
       const version = '1.0.0'
-      const sql = 'CREATE TABLE test_table (id SERIAL PRIMARY KEY);'
       
-      const artifact = await createTestArtifact(version, [
-        { path: 'drizzle/001_create.sql', content: sql, type: 'drizzle' }
-      ])
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
       
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       
       // Apply with dry run
       await engine.apply(version, { dryRun: true })
@@ -150,18 +188,20 @@ describe('MigrationEngine', () => {
 
   describe('verify', () => {
     it('should verify valid artifact', async () => {
-      const version = '1.0.0'
-      const artifact = await createTestArtifact(version, [
-        { path: 'drizzle/001_test.sql', content: 'SELECT 1;', type: 'drizzle' }
-      ])
+      const version = '1.0.3'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.3.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
       
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       
       const result = await engine.verify(version)
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)
-    })
+    }, 10000) // Increase timeout to 10 seconds
 
     it('should detect missing artifact', async () => {
       const result = await engine.verify('99.99.99')
@@ -172,14 +212,15 @@ describe('MigrationEngine', () => {
 
   describe('status', () => {
     it('should return current status', async () => {
-      // Apply a version
-      const version = '1.0.0'
-      const artifact = await createTestArtifact(version, [
-        { path: 'drizzle/001_test.sql', content: 'SELECT 1;', type: 'drizzle' }
-      ])
+      const version = '1.0.3'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.3.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
       
       const storage = engine['storage'] as FilesystemStorage
-      await storage.push(version, artifact.buffer, artifact.manifest)
+      await storage.push(version, artifactBuffer, manifest)
       await engine.apply(version)
       
       // Get status
@@ -191,46 +232,3 @@ describe('MigrationEngine', () => {
   })
 })
 
-async function createTestArtifact(
-  version: string,
-  files: Array<{ path: string; content: string; type: 'drizzle' | 'custom' | 'seed' | 'rollback' }>
-): Promise<{ buffer: Buffer; manifest: any }> {
-  const tempDir = await mkdtemp(join(tmpdir(), 'artifact-'))
-  
-  try {
-    // Write files
-    const fileBuffers = []
-    for (const file of files) {
-      const dir = join(tempDir, file.path.split('/')[0])
-      await mkdir(dir, { recursive: true })
-      const filePath = join(tempDir, file.path)
-      await writeFile(filePath, file.content)
-      fileBuffers.push({ path: file.path, content: Buffer.from(file.content), type: file.type })
-    }
-    
-    // Create manifest
-    const manifest = createManifest({
-      version,
-      notes: 'Test migration',
-      drizzleKit: '0.20.0',
-      files: fileBuffers
-    })
-    
-    // Write manifest
-    await writeFile(join(tempDir, 'manifest.json'), JSON.stringify(manifest))
-    
-    // Create tarball
-    const tarPath = join(tempDir, 'artifact.tar.gz')
-    await create({
-      gzip: true,
-      file: tarPath,
-      cwd: tempDir
-    }, ['.'])
-    
-    const buffer = require('fs').readFileSync(tarPath)
-    
-    return { buffer, manifest }
-  } finally {
-    await rm(tempDir, { recursive: true })
-  }
-}

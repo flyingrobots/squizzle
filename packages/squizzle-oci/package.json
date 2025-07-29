@@ -1,12 +1,12 @@
 {
   "name": "@squizzle/oci",
-  "version": "2.0.0",
+  "version": "0.0.0",
   "description": "OCI registry storage for SQUIZZLE artifacts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@squizzle/core": "workspace:*",
