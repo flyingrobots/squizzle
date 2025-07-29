@@ -1,0 +1,102 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, release/*, strike-team/* ]
+  pull_request:
+    branches: [ main, release/* ]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: squizzle_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.13.1
+        
+    - name: Get pnpm store directory
+      id: pnpm-cache
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+        
+    - uses: actions/cache@v4
+      name: Setup pnpm cache
+      with:
+        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+          
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: Build packages
+      run: pnpm build
+      
+    - name: Setup test database
+      run: ./test/integration/ci-setup.sh
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: squizzle_test
+      
+    - name: Run integration tests
+      run: pnpm test:integration
+      env:
+        CI: true
+        DATABASE_URL: postgresql://postgres:test@localhost:5432/squizzle_test
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: squizzle_test
+        REGISTRY_HOST: localhost
+        REGISTRY_PORT: 5000
+        
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results
+        path: |
+          test/integration/**/*.log
+          test/integration/**/screenshots/
+          
+    - name: Upload coverage
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-coverage
+        path: coverage/

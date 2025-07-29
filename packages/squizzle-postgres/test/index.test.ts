@@ -340,7 +340,7 @@ describe('PostgresDriver', () => {
           applied_by: 'user1',
           checksum: 'abc123',
           success: true,
-          error: null,
+          error: undefined,
           rollback_of: null
         },
         {

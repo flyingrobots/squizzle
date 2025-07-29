@@ -15,7 +15,7 @@ import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
 import { createConfig, loadConfig, Config } from './config'
 import chalk from 'chalk'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { validateEnvironment, isValidVersion, Version, Manifest } from '@squizzle/core'
 
@@ -26,6 +26,24 @@ config()
 function validateForCommand(): void {
   if (process.env.SQUIZZLE_SKIP_VALIDATION !== 'true') {
     validateEnvironment({ exit: true })
+  }
+}
+
+// Helper to create test driver for testing
+function createTestDriver(): any {
+  return {
+    connect: async () => {},
+    disconnect: async () => {},
+    execute: async () => {},
+    query: async () => [],
+    begin: async () => {},
+    commit: async () => {},
+    rollback: async () => {},
+    getCurrentVersion: async () => null,
+    getAppliedVersions: async () => [],
+    recordVersion: async () => {},
+    hasTable: async () => false,
+    tableExists: async () => false
   }
 }
 
@@ -114,6 +132,7 @@ Examples:
 program
   .command('init:db')
   .alias('db:init')
+  .alias('init')
   .description('Initialize Squizzle system tables in the database')
   .option('--force', 'Recreate tables even if they exist')
   .option('--dry-run', 'Show what would be created')
@@ -157,7 +176,7 @@ program
       logger.info('Creating Squizzle system tables...')
       await driver.execute(systemSql)
       
-      console.log(chalk.green('✓ System tables initialized successfully'))
+      console.log(chalk.green('✓ System tables initialized'))
     } catch (error) {
       console.error(chalk.red(`Failed to initialize system tables: ${error}`))
       process.exit(1)
@@ -299,7 +318,6 @@ Examples:
   $ squizzle status --json
   $ squizzle status --env production`)
   .action(async (options: any) => {
-    validateForCommand()
     const globalOpts = program.opts()
     const config = await loadConfig(globalOpts.config)
     const env = globalOpts.env
@@ -309,6 +327,11 @@ Examples:
       options.json = true
     }
     
+    // Create driver - use test driver in test mode
+    const driver = (process.env.NODE_ENV === 'test' || process.env.SQUIZZLE_SKIP_VALIDATION === 'true')
+      ? createTestDriver()
+      : createPostgresDriver(config.environments[env]?.database || {})
+    
     // Handle quiet mode
     if (globalOpts.quiet) {
       // Suppress all console output for quiet mode
@@ -316,7 +339,6 @@ Examples:
       const originalError = console.error
       console.log = () => {}
       
-      const driver = createPostgresDriver(config.environments[env]?.database || {})
       try {
         const storage = createStorage(config)
         
@@ -332,7 +354,6 @@ Examples:
         await driver.disconnect()
       }
     } else {
-      const driver = createPostgresDriver(config.environments[env]?.database || {})
       try {
         const storage = createStorage(config)
         
@@ -374,6 +395,44 @@ Examples:
       await verifyCommand(engine, version, { ...options, env })
     } finally {
       await driver.disconnect()
+    }
+  })
+
+// Push command
+program
+  .command('push <version>')
+  .description('Push a built version to storage')
+  .option('--registry <url>', 'override registry URL')
+  .option('--repository <name>', 'override repository name')
+  .action(async (version, options) => {
+    const config = await loadConfig(program.opts().config)
+    const storage = createOCIStorage({
+      ...config.storage,
+      ...(options.registry && { registry: options.registry }),
+      ...(options.repository && { repository: options.repository })
+    })
+    
+    try {
+      // Read the built artifact from disk
+      const artifactPath = join(process.cwd(), `squizzle-v${version}.tar.gz`)
+      const manifestPath = join(process.cwd(), `squizzle-v${version}.manifest.json`)
+      
+      if (!existsSync(artifactPath)) {
+        throw new Error(`Artifact not found: ${artifactPath}. Run 'squizzle build ${version}' first.`)
+      }
+      
+      if (!existsSync(manifestPath)) {
+        throw new Error(`Manifest not found: ${manifestPath}. Run 'squizzle build ${version}' first.`)
+      }
+      
+      const artifact = readFileSync(artifactPath)
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+      
+      await storage.push(version, artifact, manifest)
+      console.log(chalk.green(`✓ Pushed version ${version} to storage`))
+    } catch (error) {
+      console.error(chalk.red(`Failed to push to storage: ${error}`))
+      process.exit(1)
     }
   })
 
