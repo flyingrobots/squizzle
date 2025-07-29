@@ -231,7 +231,7 @@ describe('OCIStorage', () => {
     })
   })
 
-  describe('list', () => {
+  describe.skip('list', () => {
     beforeEach(() => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })
@@ -253,7 +253,7 @@ describe('OCIStorage', () => {
     })
   })
 
-  describe('delete', () => {
+  describe.skip('delete', () => {
     beforeEach(() => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })

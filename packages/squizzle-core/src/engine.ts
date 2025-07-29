@@ -44,7 +44,7 @@ export class MigrationEngine {
   }
 
   async apply(version: Version, options: MigrationOptions = {}): Promise<void> {
-    this.logger.info(`Applying version ${version}`, { version, options })
+    this.logger.info(`Applying version ${version}`, { version, metadata: { options } })
     
     // Check and initialize system tables if needed
     await this.ensureSystemTables()
@@ -83,7 +83,7 @@ export class MigrationEngine {
 
       // Run migrations
       if (options.dryRun) {
-        this.logger.info('Dry run - would apply:', { migrations: sorted.map(m => m.path) })
+        this.logger.info('Dry run - would apply:', { metadata: { migrations: sorted.map(m => m.path) } })
         return
       }
 
@@ -95,7 +95,7 @@ export class MigrationEngine {
       this.logger.info(`Successfully applied version ${version}`)
       
     } catch (error) {
-      this.logger.error(`Failed to apply version ${version}`, error)
+      this.logger.error(`Failed to apply version ${version}`, error instanceof Error ? error : { metadata: { error } })
       
       // Record failure only if we have a manifest
       if (manifest) {
@@ -107,11 +107,7 @@ export class MigrationEngine {
             error instanceof Error ? error.message : String(error)
           )
         } catch (recordError) {
-          this.logger.error('Failed to record version failure', { 
-            error: recordError, 
-            message: recordError instanceof Error ? recordError.message : String(recordError),
-            stack: recordError instanceof Error ? recordError.stack : undefined
-          })
+          this.logger.error('Failed to record version failure', recordError instanceof Error ? recordError : { metadata: { error: recordError } })
         }
       }
       
@@ -122,7 +118,7 @@ export class MigrationEngine {
   }
 
   async rollback(version: Version, options: MigrationOptions = {}): Promise<void> {
-    this.logger.info(`Rolling back version ${version}`, { version, options })
+    this.logger.info(`Rolling back version ${version}`, { version, metadata: { options } })
     
     const unlock = await this.driver.lock(`squizzle:rollback:${version}`, options.timeout)
     
