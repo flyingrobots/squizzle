@@ -236,12 +236,20 @@ describe('OCIStorage', () => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })
 
-    it.skip('should list versions from registry', async () => {
-      // TODO: Implement proper HTTP mocking for the new implementation
+    it('should return empty array (not implemented)', async () => {
+      mockExecSync.mockReturnValue('localhost:5000/squizzle-artifacts\n')
+
+      const result = await storage.list()
+
+      expect(result).toEqual([])
     })
 
-    it.skip('should return empty array when repository not found', async () => {
-      // TODO: Implement proper HTTP mocking for the new implementation
+    it('should throw StorageError on list failure', async () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('Search failed')
+      })
+
+      await expect(storage.list()).rejects.toThrow(StorageError)
     })
   })
 
@@ -250,12 +258,11 @@ describe('OCIStorage', () => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })
 
-    it.skip('should delete version from registry', async () => {
-      // TODO: Implement proper HTTP mocking for the new implementation
-    })
-
-    it.skip('should throw error if version not found', async () => {
-      // TODO: Implement proper HTTP mocking for the new implementation
+    it('should throw not implemented error', async () => {
+      await expect(storage.delete('1.0.0' as Version))
+        .rejects.toThrow(StorageError)
+      await expect(storage.delete('1.0.0' as Version))
+        .rejects.toThrow('Deletion not implemented for OCI storage')
     })
   })
 
