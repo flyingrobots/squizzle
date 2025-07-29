@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { ConfigValidator } from './config-validator'
+import { ConfigValidator } from '../src/config-validator'
 
 describe('ConfigValidator', () => {
   let validator: ConfigValidator

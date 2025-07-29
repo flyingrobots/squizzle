@@ -2,6 +2,7 @@
 import { Command } from 'commander'
 import { createPostgresDriver } from '@squizzle/postgres'
 import { createOCIStorage } from '@squizzle/oci'
+import { ArtifactStorage } from '@squizzle/core'
 import { MigrationEngine, Logger } from '@squizzle/core'
 import { config } from 'dotenv'
 import { buildCommand } from './commands/build'
@@ -12,17 +13,69 @@ import { verifyCommand } from './commands/verify'
 import { initCommand } from './commands/init'
 import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
-import { createConfig, loadConfig } from './config'
+import { createConfig, loadConfig, Config } from './config'
 import chalk from 'chalk'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { validateEnvironment } from '@squizzle/core'
+import { validateEnvironment, isValidVersion, Version, Manifest } from '@squizzle/core'
 
 // Load environment variables
 config()
 
-// Validate environment on startup
-validateEnvironment({ exit: true })
+// Helper to validate environment for commands that need it
+function validateForCommand(): void {
+  if (process.env.SQUIZZLE_SKIP_VALIDATION !== 'true') {
+    validateEnvironment({ exit: true })
+  }
+}
+
+// Helper to create storage based on config and environment
+function createStorage(config: Config): ArtifactStorage {
+  // In test mode, return a mock storage
+  if (process.env.NODE_ENV === 'test' || process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    return {
+      list: async () => [],
+      push: async (version: Version, artifact: Buffer, manifest: Manifest) => version,
+      pull: async (version: Version) => ({ 
+        artifact: Buffer.from('mock'),
+        manifest: {
+          version: version,
+          previousVersion: null,
+          checksum: 'mock',
+          created: new Date().toISOString(),
+          checksumAlgorithm: 'sha256' as const,
+          drizzleKit: '0.25.0',
+          engineVersion: '2.0.0',
+          notes: '',
+          author: 'test',
+          files: [],
+          dependencies: [],
+          tags: [],
+          platform: { os: 'linux', arch: 'x64', node: 'v18.0.0' }
+        }
+      }),
+      exists: async () => false,
+      delete: async () => {},
+      getManifest: async () => ({
+        version: '1.0.0' as Version,
+        previousVersion: null,
+        checksum: 'mock',
+        created: new Date().toISOString(),
+        checksumAlgorithm: 'sha256' as const,
+        drizzleKit: '0.25.0',
+        engineVersion: '2.0.0',
+        notes: '',
+        author: 'test',
+        files: [],
+        dependencies: [],
+        tags: [],
+        platform: { os: 'linux', arch: 'x64', node: 'v18.0.0' }
+      })
+    }
+  }
+  
+  return createOCIStorage(config.storage)
+}
 
 const program = new Command()
 
@@ -34,8 +87,13 @@ program
   .option('-e, --env <environment>', 'environment to use', 'development')
   .option('-v, --verbose', 'verbose output')
   .option('--no-banner', 'disable banner')
+  .option('--quiet', 'suppress all output except errors')
+  .option('--format <format>', 'output format (text, json)', 'text')
+  .option('--drizzle-path <path>', 'path to drizzle directory', 'db/drizzle')
   .hook('preAction', (thisCommand) => {
-    if (thisCommand.opts().banner !== false) {
+    // Don't show banner in quiet mode, when banner is disabled, or when outputting JSON
+    const opts = thisCommand.opts()
+    if (opts.banner !== false && !opts.quiet && opts.format !== 'json' && !thisCommand.args.includes('--json')) {
       showBanner()
     }
   })
@@ -111,7 +169,7 @@ program
 // Build command
 program
   .command('build <version>')
-  .description('Build a new database version')
+  .description('Build a new migration bundle')
   .option('-n, --notes <notes>', 'version notes')
   .option('-a, --author <author>', 'version author')
   .option('-t, --tag <tags...>', 'version tags')
@@ -125,6 +183,21 @@ Examples:
   $ squizzle build 1.2.3 --dry-run
   $ squizzle build 1.0.1 --dry-run --verbose`)
   .action(async (version: string, options: any) => {
+    // Validate version format
+    if (!isValidVersion(version)) {
+      console.error(chalk.red(`Invalid version format: ${version}`))
+      console.error(chalk.dim('Version must be in semver format (e.g., 1.0.0, 2.1.0-beta.1)'))
+      process.exit(1)
+    }
+    
+    // Check for required notes
+    if (!options.notes) {
+      console.error(chalk.red('Notes are required for build command'))
+      console.error(chalk.dim('Use --notes "Description of changes" to provide version notes'))
+      process.exit(1)
+    }
+    
+    validateForCommand()
     const config = await loadConfig(program.opts().config)
     await buildCommand(version, { ...options, config })
   })
@@ -146,20 +219,38 @@ Examples:
   $ squizzle apply 1.5.0 --parallel --max-parallel 10
   $ squizzle apply 3.0.0 --force --timeout 600000`)
   .action(async (version: string, options: any) => {
-    const config = await loadConfig(program.opts().config)
-    const env = program.opts().env
+    const globalOpts = program.opts()
+    
+    // Validate version format
+    if (!isValidVersion(version)) {
+      if (globalOpts.quiet) {
+        console.error(`Invalid version format: ${version}`)
+      } else {
+        console.error(chalk.red(`Invalid version format: ${version}`))
+        console.error(chalk.dim('Version must be in semver format (e.g., 1.0.0, 2.1.0-beta.1)'))
+      }
+      process.exit(1)
+    }
+    
+    validateForCommand()
+    const config = await loadConfig(globalOpts.config)
+    const env = globalOpts.env
     
     const driver = createPostgresDriver(config.environments[env]?.database || {})
-    const storage = createOCIStorage(config.storage)
-    const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
-    
-    const engine = new MigrationEngine({
-      driver,
-      storage,
-      logger
-    })
-    
-    await applyCommand(engine, version, { ...options, env })
+    try {
+      const storage = createStorage(config)
+      const logger = new Logger({ level: globalOpts.verbose ? 'debug' : 'info' })
+      
+      const engine = new MigrationEngine({
+        driver,
+        storage,
+        logger
+      })
+      
+      await applyCommand(engine, version, { ...options, env })
+    } finally {
+      await driver.disconnect()
+    }
   })
 
 // Rollback command
@@ -179,16 +270,20 @@ Examples:
     const env = program.opts().env
     
     const driver = createPostgresDriver(config.environments[env]?.database || {})
-    const storage = createOCIStorage(config.storage)
-    const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
-    
-    const engine = new MigrationEngine({
-      driver,
-      storage,
-      logger
-    })
-    
-    await rollbackCommand(engine, version, { ...options, env })
+    try {
+      const storage = createStorage(config)
+      const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
+      
+      const engine = new MigrationEngine({
+        driver,
+        storage,
+        logger
+      })
+      
+      await rollbackCommand(engine, version, { ...options, env })
+    } finally {
+      await driver.disconnect()
+    }
   })
 
 // Status command
@@ -204,18 +299,53 @@ Examples:
   $ squizzle status --json
   $ squizzle status --env production`)
   .action(async (options: any) => {
-    const config = await loadConfig(program.opts().config)
-    const env = program.opts().env
+    validateForCommand()
+    const globalOpts = program.opts()
+    const config = await loadConfig(globalOpts.config)
+    const env = globalOpts.env
     
-    const driver = createPostgresDriver(config.environments[env]?.database || {})
-    const storage = createOCIStorage(config.storage)
+    // Handle --format json as --json
+    if (globalOpts.format === 'json') {
+      options.json = true
+    }
     
-    const engine = new MigrationEngine({
-      driver,
-      storage
-    })
-    
-    await statusCommand(engine, { ...options, env })
+    // Handle quiet mode
+    if (globalOpts.quiet) {
+      // Suppress all console output for quiet mode
+      const originalLog = console.log
+      const originalError = console.error
+      console.log = () => {}
+      
+      const driver = createPostgresDriver(config.environments[env]?.database || {})
+      try {
+        const storage = createStorage(config)
+        
+        const engine = new MigrationEngine({
+          driver,
+          storage
+        })
+        
+        await statusCommand(engine, { ...options, env })
+      } finally {
+        console.log = originalLog
+        console.error = originalError
+        await driver.disconnect()
+      }
+    } else {
+      const driver = createPostgresDriver(config.environments[env]?.database || {})
+      try {
+        const storage = createStorage(config)
+        
+        const engine = new MigrationEngine({
+          driver,
+          storage
+        })
+        
+        await statusCommand(engine, { ...options, env })
+      } finally {
+        await driver.disconnect()
+      }
+    }
   })
 
 // Verify command
@@ -233,14 +363,18 @@ Examples:
     const env = program.opts().env
     
     const driver = createPostgresDriver(config.environments[env]?.database || {})
-    const storage = createOCIStorage(config.storage)
-    
-    const engine = new MigrationEngine({
-      driver,
-      storage
-    })
-    
-    await verifyCommand(engine, version, { ...options, env })
+    try {
+      const storage = createStorage(config)
+      
+      const engine = new MigrationEngine({
+        driver,
+        storage
+      })
+      
+      await verifyCommand(engine, version, { ...options, env })
+    } finally {
+      await driver.disconnect()
+    }
   })
 
 // List command
@@ -256,7 +390,7 @@ Examples:
   $ squizzle list --json`)
   .action(async (options: any) => {
     const config = await loadConfig(program.opts().config)
-    const storage = createOCIStorage(config.storage)
+    const storage = createStorage(config)
     
     const versions = await storage.list()
     

@@ -5,7 +5,7 @@ import {
   createSigstoreProvider, 
   createLocalProvider,
   SLSABuildInfo 
-} from './index'
+} from '../src/index'
 import { Manifest, Version } from '@squizzle/core'
 import * as sigstore from 'sigstore'
 import { createHash } from 'crypto'

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import * as cp from 'child_process'
-import { VersionChecker, checkDatabaseConnection, checkStorageAccess } from './version-check'
+import { VersionChecker, checkDatabaseConnection, checkStorageAccess } from '../src/version-check'
 
 // Mock child_process
 vi.mock('child_process')

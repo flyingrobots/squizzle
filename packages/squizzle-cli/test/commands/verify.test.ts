@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { verifyCommand } from './verify'
+import { verifyCommand } from '../../src/commands/verify'
 import { MigrationEngine } from '@squizzle/core'
 
 // Mock ora

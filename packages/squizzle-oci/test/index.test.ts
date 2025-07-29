@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { OCIStorage, FilesystemStorage, createOCIStorage, OCIStorageOptions } from './index'
+import { OCIStorage, FilesystemStorage, createOCIStorage, OCIStorageOptions } from '../src/index'
 import { StorageError, Version, Manifest } from '@squizzle/core'
 import { execSync } from 'child_process'
 import * as fs from 'fs'

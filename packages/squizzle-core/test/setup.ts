@@ -44,7 +44,30 @@ export async function setupTestDatabase() {
       throw new Error('Test database is not running. Run: cd test/infra && ./start.sh')
     }
     
-    // For tests, we'll apply system tables directly via SQL for speed
+    // For tests, we need to ensure the schema exists with proper permissions
+    // First drop and recreate the schema to ensure clean state
+    // Use superuser to drop and create schema with proper ownership
+    const setupSql = `
+      -- Drop schema if exists (cascade to drop all tables)
+      DROP SCHEMA IF EXISTS squizzle CASCADE;
+      
+      -- Create schema with postgres as owner
+      CREATE SCHEMA squizzle;
+      
+      -- Change ownership to postgres user
+      ALTER SCHEMA squizzle OWNER TO postgres;
+      
+      -- Grant all privileges to postgres user
+      GRANT ALL ON SCHEMA squizzle TO postgres;
+    `
+    
+    execSync('docker compose -f docker-compose-simple.yml exec -T db psql -U supabase_admin -d squizzle_test', {
+      cwd: INFRA_PATH,
+      input: setupSql,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    
+    // Now apply system tables
     const sql = readFileSync(SYSTEM_SQL_PATH, 'utf-8')
     
     execSync('docker compose -f docker-compose-simple.yml exec -T db psql -U postgres -d squizzle_test', {
@@ -58,8 +81,12 @@ export async function setupTestDatabase() {
 export async function cleanupTestDatabase() {
   // Truncate all tables to ensure clean state
   const sql = `
-    TRUNCATE TABLE squizzle_versions CASCADE;
+    -- Clear all version records
+    DELETE FROM squizzle.versions;
+    -- Drop any test tables
     DROP TABLE IF EXISTS test_table CASCADE;
+    DROP TABLE IF EXISTS bad_table CASCADE;
+    DROP TABLE IF EXISTS users CASCADE;
   `
   
   const isCI = process.env.CI === 'true'

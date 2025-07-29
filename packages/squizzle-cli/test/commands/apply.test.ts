@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { applyCommand } from './apply'
+import { applyCommand } from '../../src/commands/apply'
 import { MigrationEngine } from '@squizzle/core'
 import inquirer from 'inquirer'
 
