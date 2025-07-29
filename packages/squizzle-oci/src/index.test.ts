@@ -4,6 +4,8 @@ import { StorageError, Version, Manifest } from '@squizzle/core'
 import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as https from 'https'
+import * as http from 'http'
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -21,14 +23,28 @@ vi.mock('fs', () => ({
   unlinkSync: vi.fn()
 }))
 
+// Mock https module
+vi.mock('https', () => ({
+  request: vi.fn()
+}))
+
+// Mock http module
+vi.mock('http', () => ({
+  request: vi.fn()
+}))
+
 describe('OCIStorage', () => {
   let storage: OCIStorage
   let mockExecSync: jest.Mock
   let mockFs: typeof fs
+  let mockHttpsRequest: jest.Mock
+  let mockHttpRequest: jest.Mock
 
   beforeEach(() => {
     mockExecSync = execSync as unknown as jest.Mock
     mockFs = fs as any
+    mockHttpsRequest = https.request as unknown as jest.Mock
+    mockHttpRequest = http.request as unknown as jest.Mock
     vi.clearAllMocks()
   })
 
@@ -237,7 +253,30 @@ describe('OCIStorage', () => {
     })
 
     it('should return empty array (not implemented)', async () => {
-      mockExecSync.mockReturnValue('localhost:5000/squizzle-artifacts\n')
+      // Mock the HTTP request to return a 404 (repository not found)
+      const mockResponse = {
+        statusCode: 404,
+        headers: {},
+        on: vi.fn((event, callback) => {
+          if (event === 'data') callback('{"errors":[{"code":"NAME_UNKNOWN"}]}')
+          if (event === 'end') callback()
+        })
+      }
+      
+      const mockRequest = {
+        on: vi.fn(),
+        setTimeout: vi.fn(),
+        destroy: vi.fn(),
+        end: vi.fn()
+      }
+      
+      mockHttpsRequest.mockReturnValue(mockRequest)
+      
+      // Immediately trigger the response
+      setTimeout(() => {
+        const responseCallback = mockHttpsRequest.mock.calls[0][1]
+        responseCallback(mockResponse)
+      }, 0)
 
       const result = await storage.list()
 
@@ -245,9 +284,17 @@ describe('OCIStorage', () => {
     }, 10000)
 
     it('should throw StorageError on list failure', async () => {
-      mockExecSync.mockImplementation(() => {
-        throw new Error('Search failed')
-      })
+      // Mock the HTTP request to fail
+      const mockRequest = {
+        on: vi.fn((event, callback) => {
+          if (event === 'error') callback(new Error('Connection failed'))
+        }),
+        setTimeout: vi.fn(),
+        destroy: vi.fn(),
+        end: vi.fn()
+      }
+      
+      mockHttpsRequest.mockReturnValue(mockRequest)
 
       await expect(storage.list()).rejects.toThrow(StorageError)
     }, 10000)
@@ -259,10 +306,66 @@ describe('OCIStorage', () => {
     })
 
     it('should throw not implemented error', async () => {
+      // Create mock response objects
+      const createMockResponse = (statusCode: number, data: string, headers: any = {}) => {
+        const chunks: string[] = []
+        const listeners: { [key: string]: Function[] } = {
+          data: [],
+          end: []
+        }
+        
+        return {
+          statusCode,
+          headers,
+          on: vi.fn((event: string, callback: Function) => {
+            if (!listeners[event]) listeners[event] = []
+            listeners[event].push(callback)
+            
+            // Simulate async response
+            if (event === 'end') {
+              setImmediate(() => {
+                listeners.data.forEach(cb => cb(data))
+                listeners.end.forEach(cb => cb())
+              })
+            }
+          })
+        }
+      }
+      
+      // Create mock request object
+      const createMockRequest = (response: any) => {
+        const req = {
+          on: vi.fn(),
+          setTimeout: vi.fn(),
+          destroy: vi.fn(),
+          write: vi.fn(),
+          end: vi.fn(() => {
+            // Simulate calling the response callback
+            setImmediate(() => {
+              const callback = mockHttpsRequest.mock.calls[mockHttpsRequest.mock.calls.length - 1][1]
+              if (callback) callback(response)
+            })
+          })
+        }
+        return req
+      }
+      
+      let callCount = 0
+      mockHttpsRequest.mockImplementation((options, callback) => {
+        callCount++
+        if (callCount === 1) {
+          // First call: GET manifest
+          const response = createMockResponse(200, '{"schemaVersion":2}', { 'docker-content-digest': 'sha256:abc123' })
+          return createMockRequest(response)
+        } else if (callCount === 2) {
+          // Second call: DELETE manifest
+          const response = createMockResponse(405, '{"errors":[{"code":"UNSUPPORTED"}]}')
+          return createMockRequest(response)
+        }
+      })
+
       await expect(storage.delete('1.0.0' as Version))
-        .rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0' as Version))
-        .rejects.toThrow('Deletion not implemented for OCI storage')
+        .rejects.toThrow('Registry does not support deletion')
     }, 10000)
   })
 
