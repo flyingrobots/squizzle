@@ -170,17 +170,18 @@
   },
   "active": "5c92f903b565bc31",
   "lastOpenFiles": [
-    "eslint.config.mjs",
-    "node_modules/@typescript-eslint",
-    "pnpm-lock.yaml.1066309985",
-    "eslint.config.js",
-    "packages/squizzle-cli/src/cli.test.ts",
-    "packages/squizzle-security/src/security.test.ts",
-    "packages/squizzle-security/src/security.test.ts.tmp.94567.1753727151390",
-    "packages/squizzle-postgres/src/driver.test.ts",
-    "packages/squizzle-oci/src/storage.test.ts",
-    "packages/squizzle-cli/src/commands/completion.ts.tmp.94567.1753726708910",
-    "packages/squizzle-cli/src/commands/completion.ts.tmp.94567.1753726701502",
+    "packages/squizzle-cli/invalid.config.ts",
+    "packages/squizzle-cli/src/cli.test.ts.tmp.94567.1753748252018",
+    "packages/squizzle-cli/test-squizzle.config.ts",
+    "packages/squizzle-cli/test-artifacts",
+    "pnpm-lock.yaml.2440246050",
+    "packages/squizzle-cli/src/cli.test.ts.tmp.94567.1753747606234",
+    "packages/squizzle-cli/src/cli.test.ts.tmp.94567.1753747551867",
+    "test/utils/index.ts",
+    "test/utils",
+    "packages/squizzle-security/vitest.config.ts",
+    "packages/squizzle-security/src/index.test.ts",
+    "packages/squizzle-core/sql/system/README.md",
     "docs/guides/shell-completions.md",
     "docs/guides/error-recovery.md",
     "INSTRUCTIONS.md",
@@ -204,7 +205,6 @@
     "packages/squizzle-core/node_modules/tar/README.md",
     "packages/squizzle-core/node_modules/@types/tar/README.md",
     "packages/squizzle-core/node_modules/minipass/README.md",
-    "packages/squizzle-core/node_modules/yallist/README.md",
-    "packages/squizzle-core/node_modules/yallist/LICENSE.md"
+    "packages/squizzle-core/node_modules/yallist/README.md"
   ]
 }

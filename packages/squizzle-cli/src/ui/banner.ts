@@ -3,7 +3,6 @@ import boxen from 'boxen'
 import chalk from 'chalk'
 
 const fire = gradient(['#FF6B6B', '#FF8E53', '#FE6B8B'])
-const cool = gradient(['#667EEA', '#764BA2', '#F093FB'])
 
 export function showBanner(): void {
   const banner = `

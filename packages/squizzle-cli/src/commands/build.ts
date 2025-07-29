@@ -292,7 +292,7 @@ function getDrizzleKitVersion(): string {
   }
 }
 
-async function getLastVersion(config: Config): Promise<Version | null> {
+async function getLastVersion(_config: Config): Promise<Version | null> {
   // TODO: Get from storage
   return null
 }
@@ -308,7 +308,7 @@ async function createArtifact(
   // Write files
   for (const file of files) {
     const filePath = join(tempDir, file.path)
-    await mkdir(join(tempDir, file.path.split('/')[0]), { recursive: true })
+    await mkdir(join(tempDir, file.path.split('/')[0] || ''), { recursive: true })
     await writeFile(filePath, file.content)
   }
   

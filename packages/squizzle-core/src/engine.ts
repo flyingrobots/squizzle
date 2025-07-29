@@ -1,5 +1,4 @@
 import { createHash } from 'crypto'
-import { z } from 'zod'
 import pLimit from 'p-limit'
 import * as tar from 'tar'
 import { pipeline } from 'stream/promises'
@@ -229,7 +228,7 @@ export class MigrationEngine {
     return { valid: errors.length === 0, errors }
   }
 
-  private async verifyIntegrity(artifact: Buffer, manifest: Manifest): Promise<void> {
+  private async verifyIntegrity(_artifact: Buffer, manifest: Manifest): Promise<void> {
     // The manifest checksum is calculated from the sorted file paths and their checksums.
     // Individual file checksums are verified during extraction in extractMigrations.
     // Here we verify that the manifest checksum matches what we calculate from the files.

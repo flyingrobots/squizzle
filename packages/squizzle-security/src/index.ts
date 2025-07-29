@@ -10,7 +10,7 @@ export interface SigstoreOptions {
 }
 
 export class SigstoreProvider implements SecurityProvider {
-  constructor(private options: SigstoreOptions = {}) {}
+  constructor(_options: SigstoreOptions = {}) {}
 
   async sign(data: Buffer): Promise<string> {
     try {
@@ -111,7 +111,7 @@ export class LocalSecurityProvider implements SecurityProvider {
     return signature === expected
   }
 
-  async generateSLSA(manifest: Manifest): Promise<Manifest['slsa']> {
+  async generateSLSA(_manifest: Manifest): Promise<Manifest['slsa']> {
     return {
       builderId: 'local-development',
       buildType: 'local-build@v1',

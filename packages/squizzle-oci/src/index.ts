@@ -108,7 +108,7 @@ export class OCIStorage implements ArtifactStorage {
 
     return {
       scheme: 'Bearer',
-      realm: match[1],
+      realm: match[1] || '',
       service: match[2] || '',
       scope: match[3] || ''
     }
@@ -394,8 +394,10 @@ LABEL io.squizzle.checksum="${manifest.checksum}"
         
         // Compare major.minor.patch
         for (let i = 0; i < 3; i++) {
-          if (aParts.numbers[i] !== bParts.numbers[i]) {
-            return aParts.numbers[i] - bParts.numbers[i]
+          const aNum = aParts.numbers[i] ?? 0
+          const bNum = bParts.numbers[i] ?? 0
+          if (aNum !== bNum) {
+            return aNum - bNum
           }
         }
         
@@ -426,9 +428,9 @@ LABEL io.squizzle.checksum="${manifest.checksum}"
     
     return {
       numbers: [
-        parseInt(match[1], 10),
-        parseInt(match[2], 10),
-        parseInt(match[3], 10)
+        parseInt(match[1] || '0', 10),
+        parseInt(match[2] || '0', 10),
+        parseInt(match[3] || '0', 10)
       ],
       prerelease: match[5]
     }

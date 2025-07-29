@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
     # Run on all pull requests regardless of target branch
 
@@ -49,5 +49,4 @@ jobs:
           
       - run: pnpm lint
       
-      # TODO: Re-enable typecheck after fixing TypeScript errors
-      # - run: pnpm typecheck
+      - run: pnpm typecheck

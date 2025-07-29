@@ -91,7 +91,7 @@ importers:
         specifier: ^6.1.10
         version: 6.1.13
       tsx:
-        specifier: ^4.6.2
+        specifier: ^4.20.3
         version: 4.20.3
       typescript:
         specifier: ^5.3.0
@@ -103,8 +103,8 @@ importers:
   packages/squizzle-core:
     dependencies:
       p-limit:
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^3.1.0
+        version: 3.1.0
       tar:
         specifier: ^7.4.3
         version: 7.4.3

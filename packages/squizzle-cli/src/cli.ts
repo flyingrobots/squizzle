@@ -59,7 +59,13 @@ program
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const envConfig = config.environments[env]
+    if (!envConfig) {
+      console.error(chalk.red(`Environment '${env}' not found in configuration`))
+      process.exit(1)
+    }
+    
+    const driver = createPostgresDriver(envConfig.database)
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
     try {
@@ -145,7 +151,13 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const envConfig = config.environments[env]
+    if (!envConfig) {
+      console.error(chalk.red(`Environment '${env}' not found in configuration`))
+      process.exit(1)
+    }
+    
+    const driver = createPostgresDriver(envConfig.database)
     const storage = createOCIStorage(config.storage)
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
@@ -174,7 +186,13 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const envConfig = config.environments[env]
+    if (!envConfig) {
+      console.error(chalk.red(`Environment '${env}' not found in configuration`))
+      process.exit(1)
+    }
+    
+    const driver = createPostgresDriver(envConfig.database)
     const storage = createOCIStorage(config.storage)
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
@@ -203,7 +221,13 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const envConfig = config.environments[env]
+    if (!envConfig) {
+      console.error(chalk.red(`Environment '${env}' not found in configuration`))
+      process.exit(1)
+    }
+    
+    const driver = createPostgresDriver(envConfig.database)
     const storage = createOCIStorage(config.storage)
     
     const engine = new MigrationEngine({
@@ -228,7 +252,13 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const envConfig = config.environments[env]
+    if (!envConfig) {
+      console.error(chalk.red(`Environment '${env}' not found in configuration`))
+      process.exit(1)
+    }
+    
+    const driver = createPostgresDriver(envConfig.database)
     const storage = createOCIStorage(config.storage)
     
     const engine = new MigrationEngine({
