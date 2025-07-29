@@ -128,6 +128,19 @@ describe('applyCommand', () => {
   })
 
   describe('production safeguards', () => {
+    let originalCI: string | undefined
+    
+    beforeEach(() => {
+      originalCI = process.env.CI
+      delete process.env.CI
+    })
+    
+    afterEach(() => {
+      if (originalCI !== undefined) {
+        process.env.CI = originalCI
+      }
+    })
+    
     it('should require confirmation for production environment', async () => {
       const mockInquirer = inquirer as unknown as { prompt: ReturnType<typeof vi.fn> }
       mockInquirer.prompt

@@ -152,10 +152,10 @@ describe('SigstoreProvider', () => {
           },
           parameters: { version: '1.0.0' },
           environment: {
-            github_run_id: undefined,
-            github_run_attempt: undefined,
-            github_actor: undefined,
-            github_event_name: undefined
+            github_run_id: process.env.GITHUB_RUN_ID,
+            github_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+            github_actor: process.env.GITHUB_ACTOR,
+            github_event_name: process.env.GITHUB_EVENT_NAME
           }
         },
         materials: [{

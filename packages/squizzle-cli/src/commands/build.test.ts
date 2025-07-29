@@ -255,7 +255,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.createdBy).toBe('test-user')
+      expect(manifest.author).toBe('test-user')
     })
 
     it('should use USER env variable for author if not provided', async () => {
