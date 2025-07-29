@@ -22,9 +22,9 @@ interface TelemetryConfig {
 
 export class Telemetry {
   config: TelemetryConfig
-  private sessionId: string
-  private userId: string
-  private queue: TelemetryEvent[] = []
+  sessionId: string
+  userId: string
+  queue: TelemetryEvent[] = []
   private flushTimer?: NodeJS.Timeout
   
   constructor(config: Partial<TelemetryConfig> = {}) {
@@ -128,7 +128,7 @@ export class Telemetry {
     }
   }
   
-  private filterSensitiveData(data?: Record<string, any>): Record<string, any> {
+  filterSensitiveData(data?: Record<string, any>): Record<string, any> {
     if (!data) return {}
     
     const sensitive = [
@@ -164,7 +164,7 @@ export class Telemetry {
     return filtered
   }
   
-  private async flush(): Promise<void> {
+  async flush(): Promise<void> {
     if (this.queue.length === 0) return
     
     const events = [...this.queue]

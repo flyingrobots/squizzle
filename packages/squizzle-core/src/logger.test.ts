@@ -298,12 +298,14 @@ describe('Logger', () => {
   describe('Error Handling', () => {
     it('should not crash on logging errors', () => {
       // Create logger with invalid log directory
-      process.env.SQUIZZLE_LOG_DIR = '/root/no-permission'
+      const invalidDir = process.platform === 'win32' 
+        ? 'C:\\Windows\\System32\\restricted' 
+        : '/invalid/path/that/should/not/exist'
+      process.env.SQUIZZLE_LOG_DIR = invalidDir
       
-      expect(() => {
-        const logger = new Logger({ file: true })
-        logger.info('Test')
-      }).not.toThrow()
+      // Logger should still create but file transport may fail silently
+      const logger = new Logger({ file: true })
+      expect(() => logger.info('Test')).not.toThrow()
       
       delete process.env.SQUIZZLE_LOG_DIR
     })
