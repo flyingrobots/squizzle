@@ -22,7 +22,14 @@ describe('SigstoreProvider', () => {
   let mockVerify: jest.Mock
 
   beforeEach(() => {
-    provider = new SigstoreProvider()
+    provider = new SigstoreProvider({
+      environment: {
+        github_run_id: undefined,
+        github_run_attempt: undefined,
+        github_actor: undefined,
+        github_event_name: undefined
+      }
+    })
     mockSign = sigstore.sign as unknown as jest.Mock
     mockVerify = sigstore.verify as unknown as jest.Mock
     vi.clearAllMocks()
@@ -177,6 +184,32 @@ describe('SigstoreProvider', () => {
       const result = await provider.generateSLSA(mockManifest, buildInfo)
 
       expect(result.invocation.configSource.entryPoint).toBe('.squizzle.yaml')
+    })
+
+    it('should use actual environment variables when not injected', async () => {
+      // Create provider without injected environment
+      const envProvider = new SigstoreProvider()
+      
+      // Set test environment variables
+      process.env.GITHUB_RUN_ID = 'test-run-123'
+      process.env.GITHUB_RUN_ATTEMPT = '1'
+      process.env.GITHUB_ACTOR = 'test-user'
+      process.env.GITHUB_EVENT_NAME = 'push'
+      
+      const result = await envProvider.generateSLSA(mockManifest, mockBuildInfo)
+      
+      expect(result.invocation.environment).toEqual({
+        github_run_id: 'test-run-123',
+        github_run_attempt: '1',
+        github_actor: 'test-user',
+        github_event_name: 'push'
+      })
+      
+      // Clean up
+      delete process.env.GITHUB_RUN_ID
+      delete process.env.GITHUB_RUN_ATTEMPT
+      delete process.env.GITHUB_ACTOR
+      delete process.env.GITHUB_EVENT_NAME
     })
 
     it('should include dependency materials', async () => {

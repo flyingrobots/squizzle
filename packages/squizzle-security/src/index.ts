@@ -7,6 +7,12 @@ export interface SigstoreOptions {
   rekorURL?: string
   tufMirrorURL?: string
   identityToken?: string
+  environment?: {
+    github_run_id?: string
+    github_run_attempt?: string
+    github_actor?: string
+    github_event_name?: string
+  }
 }
 
 export class SigstoreProvider implements SecurityProvider {
@@ -72,10 +78,10 @@ export class SigstoreProvider implements SecurityProvider {
         },
         parameters: buildInfo.parameters || {},
         environment: {
-          github_run_id: process.env.GITHUB_RUN_ID,
-          github_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
-          github_actor: process.env.GITHUB_ACTOR,
-          github_event_name: process.env.GITHUB_EVENT_NAME
+          github_run_id: this.options.environment?.github_run_id ?? process.env.GITHUB_RUN_ID,
+          github_run_attempt: this.options.environment?.github_run_attempt ?? process.env.GITHUB_RUN_ATTEMPT,
+          github_actor: this.options.environment?.github_actor ?? process.env.GITHUB_ACTOR,
+          github_event_name: this.options.environment?.github_event_name ?? process.env.GITHUB_EVENT_NAME
         }
       },
       materials
