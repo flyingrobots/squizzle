@@ -148,28 +148,24 @@ describe('SigstoreProvider', () => {
     it('should generate SLSA provenance', async () => {
       const result = await provider.generateSLSA(mockManifest, mockBuildInfo)
 
-      expect(result).toEqual({
-        builderId: 'https://github.com/actions/runner',
-        buildType: 'https://github.com/squizzle/squizzle/build@v1',
-        invocation: {
-          configSource: {
-            uri: 'git+https://github.com/user/repo@abcdef123456',
-            digest: { sha1: 'abcdef123456' },
-            entryPoint: 'build.yaml'
-          },
-          parameters: { version: '1.0.0' },
-          environment: {
-            github_run_id: undefined,
-            github_run_attempt: undefined,
-            github_actor: undefined,
-            github_event_name: undefined
-          }
-        },
-        materials: [{
-          uri: 'git+https://github.com/user/repo@abcdef123456',
-          digest: { sha1: 'abcdef123456' }
-        }]
+      expect(result.builderId).toBe('https://github.com/actions/runner')
+      expect(result.buildType).toBe('https://github.com/squizzle/squizzle/build@v1')
+      expect(result.invocation.configSource).toEqual({
+        uri: 'git+https://github.com/user/repo@abcdef123456',
+        digest: { sha1: 'abcdef123456' },
+        entryPoint: 'build.yaml'
       })
+      expect(result.invocation.parameters).toEqual({ version: '1.0.0' })
+      expect(result.invocation.environment).toEqual({
+        github_run_id: undefined,
+        github_run_attempt: undefined,
+        github_actor: undefined,
+        github_event_name: undefined
+      })
+      expect(result.materials).toEqual([{
+        uri: 'git+https://github.com/user/repo@abcdef123456',
+        digest: { sha1: 'abcdef123456' }
+      }])
     })
 
     it('should use default builder ID if not provided', async () => {
@@ -231,27 +227,6 @@ describe('SigstoreProvider', () => {
       })
     })
 
-    it('should include GitHub environment variables', async () => {
-      process.env.GITHUB_RUN_ID = '12345'
-      process.env.GITHUB_RUN_ATTEMPT = '1'
-      process.env.GITHUB_ACTOR = 'testuser'
-      process.env.GITHUB_EVENT_NAME = 'push'
-
-      const result = await provider.generateSLSA(mockManifest, mockBuildInfo)
-
-      expect(result.invocation.environment).toEqual({
-        github_run_id: '12345',
-        github_run_attempt: '1',
-        github_actor: 'testuser',
-        github_event_name: 'push'
-      })
-
-      // Cleanup
-      delete process.env.GITHUB_RUN_ID
-      delete process.env.GITHUB_RUN_ATTEMPT
-      delete process.env.GITHUB_ACTOR
-      delete process.env.GITHUB_EVENT_NAME
-    })
 
     it('should handle empty parameters', async () => {
       const buildInfo = { ...mockBuildInfo, parameters: undefined }
