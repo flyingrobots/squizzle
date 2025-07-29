@@ -274,7 +274,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.createdBy).toBe('env-user')
+      expect(manifest.author).toBe('env-user')
 
       process.env.USER = originalUser
     })
@@ -292,7 +292,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('0.25.0')
+      expect(manifest.drizzleKit).toBe('0.25.0')
     })
 
     it('should handle missing Drizzle Kit version', async () => {
@@ -313,7 +313,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('unknown')
+      expect(manifest.drizzleKit).toBe('unknown')
     })
   })
 
@@ -434,7 +434,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('unknown')
+      expect(manifest.drizzleKit).toBe('unknown')
     })
   })
 
