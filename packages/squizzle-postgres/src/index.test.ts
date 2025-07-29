@@ -361,7 +361,7 @@ describe('PostgresDriver', () => {
         appliedBy: 'user1',
         checksum: 'abc123',
         success: true,
-        error: null,
+        error: undefined,
         rollbackOf: undefined
       })
       expect(result[1]).toEqual({
