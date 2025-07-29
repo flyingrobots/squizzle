@@ -63,6 +63,15 @@ jobs:
     - name: Build packages
       run: pnpm build
       
+    - name: Setup test database
+      run: ./test/integration/ci-setup.sh
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: squizzle_test
+      
     - name: Run integration tests
       run: pnpm test:integration
       env:

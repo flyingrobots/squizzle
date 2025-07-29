@@ -32,14 +32,8 @@ export async function setupTestDatabase() {
       stdio: ['pipe', 'pipe', 'pipe']
     })
   } else {
-    // In CI, use psql directly with DATABASE_URL
-    const sql = readFileSync(SYSTEM_SQL_PATH, 'utf-8')
-    const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
-    
-    execSync(`psql "${databaseUrl}" -v ON_ERROR_STOP=1`, {
-      input: sql,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+    // In CI, database setup is handled by ci-setup.sh
+    console.log('Running in CI, skipping database setup (handled by ci-setup.sh)')
   }
 }
 
@@ -59,12 +53,7 @@ export async function cleanupTestDatabase() {
       stdio: ['pipe', 'pipe', 'pipe']
     })
   } else {
-    // In CI, use psql directly with DATABASE_URL
-    const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
-    
-    execSync(`psql "${databaseUrl}" -v ON_ERROR_STOP=1`, {
-      input: sql,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+    // In CI, skip cleanup as tables will be truncated per test
+    console.log('Running in CI, skipping database cleanup')
   }
 }
