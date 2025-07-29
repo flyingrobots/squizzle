@@ -103,11 +103,5 @@ export async function cleanupTestDatabase() {
       input: sql,
       stdio: ['pipe', 'pipe', 'pipe']
     })
-<<<<<<< HEAD
-  } else {
-    // In CI, skip cleanup as tables will be truncated per test
-    console.log('Running in CI, skipping database cleanup')
-=======
->>>>>>> origin/release/v0.1.0
   }
 }
