@@ -67,6 +67,7 @@ jobs:
       run: pnpm test:integration
       env:
         CI: true
+        DATABASE_URL: postgresql://postgres:test@localhost:5432/squizzle_test
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_USER: postgres
