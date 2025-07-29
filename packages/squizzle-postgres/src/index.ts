@@ -142,7 +142,7 @@ export class PostgresDriver implements DatabaseDriver {
       appliedBy: row.applied_by,
       checksum: row.checksum,
       success: row.success,
-      error: row.error || null,
+      error: row.error || undefined,
       rollbackOf: row.rollback_of ? row.rollback_of as Version : undefined
     }))
   }
