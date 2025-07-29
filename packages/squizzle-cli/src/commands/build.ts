@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { create } from 'tar'
-import ora from 'ora'
+import ora, { Ora } from 'ora'
 import chalk from 'chalk'
 import { createManifest, Version, StorageError, Manifest } from '@squizzle/core'
 import { createOCIStorage } from '@squizzle/oci'
@@ -218,7 +218,7 @@ export async function pushToStorage(
   artifactBuffer: Buffer,
   manifest: Manifest,
   options: BuildOptions,
-  spinner: ora.Ora
+  spinner: Ora
 ): Promise<string> {
   try {
     // Create storage instance with CLI overrides
@@ -273,7 +273,7 @@ export async function verifyPush(
   version: Version,
   expectedSize: number,
   options: BuildOptions,
-  spinner: ora.Ora
+  spinner: Ora
 ): Promise<void> {
   try {
     const storageConfig = {
@@ -301,7 +301,7 @@ export async function verifyPush(
       // getManifest might not be available in all storage implementations
     }
   } catch (error) {
-    console.warn(chalk.yellow('\nWarning: Could not verify push:'), error.message)
+    console.warn(chalk.yellow('\nWarning: Could not verify push:'), (error as Error).message)
     // Don't fail the build, just warn
   }
 }
