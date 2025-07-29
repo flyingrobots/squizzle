@@ -216,7 +216,8 @@ export class PostgresDriver implements DatabaseDriver {
         success BOOLEAN NOT NULL DEFAULT true,
         error TEXT,
         rollback_of VARCHAR(50),
-        manifest JSONB NOT NULL
+        manifest JSONB NOT NULL,
+        is_system BOOLEAN DEFAULT false
       );
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at 
@@ -224,6 +225,9 @@ export class PostgresDriver implements DatabaseDriver {
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success 
         ON squizzle_versions(success);
+      
+      CREATE INDEX IF NOT EXISTS idx_squizzle_versions_is_system 
+        ON squizzle_versions(is_system);
     `
     
     await this.execute(sql)
