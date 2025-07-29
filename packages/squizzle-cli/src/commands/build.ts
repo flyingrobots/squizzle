@@ -4,9 +4,11 @@ import { execSync } from 'child_process'
 import { create } from 'tar'
 import ora from 'ora'
 import chalk from 'chalk'
-import { createManifest, Version } from '@squizzle/core'
+import { createManifest, Version, StorageError, Manifest } from '@squizzle/core'
+import { createOCIStorage } from '@squizzle/oci'
 import { showSuccess, showError } from '../ui/banner'
 import { Config } from '../config'
+import prettyBytes from 'pretty-bytes'
 
 interface BuildOptions {
   notes?: string
@@ -14,6 +16,9 @@ interface BuildOptions {
   tag?: string[]
   dryRun?: boolean
   config: Config
+  registry?: string
+  repository?: string
+  skipPush?: boolean
 }
 
 export async function buildCommand(version: Version, options: BuildOptions): Promise<void> {
@@ -56,17 +61,32 @@ export async function buildCommand(version: Version, options: BuildOptions): Pro
       }
       
       // Step 7: Push to storage
-      spinner.text = 'Pushing to storage...'
-      // TODO: Push to OCI registry
-      
-      spinner.succeed('Build complete!')
-      
-      showSuccess(`Version ${version} built successfully`, {
-        'Files': files.length,
-        'Checksum': manifest.checksum.substring(0, 16) + '...',
-        'Size': 'TODO',
-        'Location': artifactPath
-      })
+      if (!options.skipPush) {
+        spinner.text = 'Pushing to storage...'
+        const artifactBuffer = await readFile(artifactPath)
+        const pushUrl = await pushToStorage(version, artifactBuffer, manifest, options, spinner)
+        
+        // Step 8: Verify push
+        await verifyPush(version, artifactBuffer.length, options, spinner)
+        
+        spinner.succeed('Build complete!')
+        
+        showSuccess(`Version ${version} built successfully`, {
+          'Files': files.length,
+          'Checksum': manifest.checksum.substring(0, 16) + '...',
+          'Size': prettyBytes(artifactBuffer.length),
+          'Location': pushUrl
+        })
+      } else {
+        spinner.succeed('Build complete!')
+        
+        showSuccess(`Version ${version} built successfully`, {
+          'Files': files.length,
+          'Checksum': manifest.checksum.substring(0, 16) + '...',
+          'Size': prettyBytes((await readFile(artifactPath)).length),
+          'Location': artifactPath
+        })
+      }
     } else {
       spinner.succeed('Dry run complete!')
       console.log('\nWould create version with:')
@@ -144,8 +164,22 @@ function getDrizzleKitVersion(): string {
 }
 
 async function getLastVersion(config: Config): Promise<Version | null> {
-  // TODO: Get from storage
-  return null
+  try {
+    // Create storage instance with environment overrides
+    const storageConfig = {
+      ...config.storage,
+      registry: process.env.SQUIZZLE_REGISTRY || config.storage.registry,
+      repository: process.env.SQUIZZLE_REPOSITORY || (config.storage as any).repository
+    }
+    
+    const storage = createOCIStorage(storageConfig as any)
+    const versions = await storage.list()
+    
+    return versions.length > 0 ? versions[versions.length - 1] : null
+  } catch (error) {
+    // If we can't list versions, assume this is the first
+    return null
+  }
 }
 
 async function createArtifact(
@@ -177,4 +211,97 @@ async function createArtifact(
   }, ['.'])
   
   return tarballPath
+}
+
+export async function pushToStorage(
+  version: Version,
+  artifactBuffer: Buffer,
+  manifest: Manifest,
+  options: BuildOptions,
+  spinner: ora.Ora
+): Promise<string> {
+  try {
+    // Create storage instance with CLI overrides
+    const storageConfig = {
+      ...options.config.storage,
+      registry: options.registry || process.env.SQUIZZLE_REGISTRY || options.config.storage.registry,
+      repository: options.repository || process.env.SQUIZZLE_REPOSITORY || (options.config.storage as any).repository
+    }
+    
+    const storage = createOCIStorage(storageConfig as any)
+    
+    // Push with progress reporting if large
+    const startTime = Date.now()
+    let lastProgressUpdate = startTime
+    
+    const url = await storage.push(version, artifactBuffer, manifest)
+    
+    const duration = Date.now() - startTime
+    const durationSec = Math.max(0.001, duration / 1000) // Avoid division by zero
+    const speed = artifactBuffer.length / durationSec
+    spinner.text = `Pushed ${prettyBytes(artifactBuffer.length)} in ${durationSec.toFixed(1)}s (${prettyBytes(speed)}/s)`
+    
+    return url
+  } catch (error) {
+    if (error instanceof StorageError) {
+      spinner.fail('Failed to push to storage')
+      
+      // Provide helpful error messages based on error type
+      if (error.message.includes('401') || error.message.includes('403') || error.message.includes('authentication')) {
+        console.error(chalk.red('\nAuthentication failed'))
+        console.error(chalk.yellow('Try running: docker login <registry>'))
+        console.error(chalk.yellow(`Registry: ${options.registry || options.config.storage.registry}`))
+      } else if (error.message.includes('network') || error.message.includes('timeout')) {
+        console.error(chalk.red('\nNetwork error'))
+        console.error(chalk.yellow('Check your internet connection and registry URL'))
+        console.error(chalk.yellow(`Registry: ${options.registry || options.config.storage.registry}`))
+      } else if (error.message.includes('404')) {
+        console.error(chalk.red('\nRepository not found'))
+        console.error(chalk.yellow('Make sure the repository exists in your registry'))
+        console.error(chalk.yellow(`Repository: ${options.repository || (options.config.storage as any).repository}`))
+      } else {
+        console.error(chalk.red('\nStorage error:'), error.message)
+      }
+      
+      throw error
+    }
+    throw error
+  }
+}
+
+export async function verifyPush(
+  version: Version,
+  expectedSize: number,
+  options: BuildOptions,
+  spinner: ora.Ora
+): Promise<void> {
+  try {
+    const storageConfig = {
+      ...options.config.storage,
+      registry: options.registry || process.env.SQUIZZLE_REGISTRY || options.config.storage.registry,
+      repository: options.repository || process.env.SQUIZZLE_REPOSITORY || (options.config.storage as any).repository
+    }
+    
+    const storage = createOCIStorage(storageConfig as any)
+    
+    // Verify it exists
+    const exists = await storage.exists(version)
+    if (!exists) {
+      throw new Error('Push reported success but artifact not found in storage')
+    }
+    
+    // Optionally verify manifest
+    try {
+      const manifest = await storage.getManifest(version)
+      // Basic sanity check
+      if (manifest.version !== version) {
+        console.warn(chalk.yellow(`Warning: Stored version (${manifest.version}) differs from expected (${version})`))
+      }
+    } catch (error) {
+      // getManifest might not be available in all storage implementations
+    }
+  } catch (error) {
+    console.warn(chalk.yellow('\nWarning: Could not verify push:'), error.message)
+    // Don't fail the build, just warn
+  }
 }

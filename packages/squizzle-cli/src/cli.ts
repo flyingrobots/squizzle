@@ -50,6 +50,9 @@ program
   .option('-a, --author <author>', 'version author')
   .option('-t, --tag <tags...>', 'version tags')
   .option('--dry-run', 'simulate build without creating artifacts')
+  .option('--registry <registry>', 'override OCI registry URL')
+  .option('--repository <repository>', 'override OCI repository name')
+  .option('--skip-push', 'skip pushing to storage (local build only)')
   .action(async (version, options) => {
     const config = await loadConfig(program.opts().config)
     await buildCommand(version, { ...options, config })
