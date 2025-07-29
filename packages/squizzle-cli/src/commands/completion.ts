@@ -59,7 +59,7 @@ _squizzle_completions() {
   fi
 
   # Get the command
-  local cmd="${words[1]}"
+  local cmd="\${words[1]}"
 
   # Command-specific completions
   case "$cmd" in
@@ -298,25 +298,25 @@ _squizzle_completion() {
 # Helper function to get available versions
 _squizzle_versions() {
   local versions
-  versions=(${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
+  versions=(\${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
   _describe -t versions 'version' versions
 }
 
 # Helper function to suggest next version
 _squizzle_next_version() {
   local versions last_version
-  versions=(${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
+  versions=(\${(f)"$(squizzle list 2>/dev/null | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V)"})
   
-  if [ ${#versions[@]} -gt 0 ]; then
-    last_version=${versions[-1]}
-    local major=$(echo $last_version | cut -d. -f1)
-    local minor=$(echo $last_version | cut -d. -f2)
-    local patch=$(echo $last_version | cut -d. -f3)
+  if [ \${#versions[@]} -gt 0 ]; then
+    last_version=\${versions[-1]}
+    local major=\$(echo \$last_version | cut -d. -f1)
+    local minor=\$(echo \$last_version | cut -d. -f2)
+    local patch=\$(echo \$last_version | cut -d. -f3)
     
     local suggestions=(
-      "$major.$minor.$((patch + 1))"
-      "$major.$((minor + 1)).0"
-      "$((major + 1)).0.0"
+      "\$major.\$minor.\$((patch + 1))"
+      "\$major.\$((minor + 1)).0"
+      "\$((major + 1)).0.0"
     )
     _describe -t versions 'version' suggestions
   else
@@ -325,7 +325,7 @@ _squizzle_next_version() {
   fi
 }
 
-_squizzle "$@"`
+_squizzle "$@"`;
 }
 
 /**
@@ -418,7 +418,7 @@ function __fish_squizzle_next_version
         echo "0.1.0"
         echo "1.0.0"
     end
-end`
+end`;
 }
 
 /**
@@ -626,7 +626,7 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
             $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
         }
     }
-}`
+}`;
 }
 
 /**
