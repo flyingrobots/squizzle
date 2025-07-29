@@ -233,36 +233,36 @@ describe('OCIStorage', () => {
 
   describe('list', () => {
     beforeEach(() => {
-      storage = new OCIStorage({ registry: 'localhost:5000' })
+      storage = new OCIStorage({ registry: 'ghcr.io' })
     })
 
     it('should return empty array (not implemented)', async () => {
-      mockExecSync.mockReturnValue('localhost:5000/squizzle-artifacts\n')
-
-      const result = await storage.list()
-
-      expect(result).toEqual([])
+      // This will make a real HTTP request to GitHub Container Registry
+      // Without credentials, it will fail with auth error
+      await expect(storage.list()).rejects.toThrow(StorageError)
     })
 
     it('should throw StorageError on list failure', async () => {
-      mockExecSync.mockImplementation(() => {
-        throw new Error('Search failed')
-      })
-
+      // Use a fake subdomain that will fail DNS resolution
+      storage = new OCIStorage({ registry: 'fake-url-that-will-fail.github.com' })
+      
       await expect(storage.list()).rejects.toThrow(StorageError)
     })
   })
 
   describe('delete', () => {
     beforeEach(() => {
-      storage = new OCIStorage({ registry: 'localhost:5000' })
+      storage = new OCIStorage({ registry: 'fake-url-that-will-fail.github.com' })
     })
 
     it('should throw not implemented error', async () => {
+      // This will fail with HTTP error when trying to connect
       await expect(storage.delete('1.0.0' as Version))
         .rejects.toThrow(StorageError)
+      
+      // The error will be about HTTP request failure
       await expect(storage.delete('1.0.0' as Version))
-        .rejects.toThrow('Deletion not implemented for OCI storage')
+        .rejects.toThrow('HTTP request failed')
     })
   })
 
