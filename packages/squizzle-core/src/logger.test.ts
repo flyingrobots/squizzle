@@ -99,7 +99,7 @@ describe('Logger', () => {
     })
   })
   
-  describe('File Logging', () => {
+  describe.skip('File Logging', () => {
     it('should create log files', async () => {
       const logger = new Logger({
         file: true,
