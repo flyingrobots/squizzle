@@ -1,80 +1,4 @@
-import { z } from 'zod'
 import chalk from 'chalk'
-
-// Define the schema for all config sources
-const EnvSchema = z.object({
-  // Required always
-  DATABASE_URL: z.string().url().refine(
-    url => url.startsWith('postgres://') || url.startsWith('postgresql://'),
-    'DATABASE_URL must be a valid PostgreSQL connection string'
-  ),
-  
-  // Required for OCI storage
-  SQUIZZLE_STORAGE_TYPE: z.enum(['oci', 'filesystem', 's3']).optional(),
-  SQUIZZLE_STORAGE_REGISTRY: z.string().optional(),
-  SQUIZZLE_STORAGE_REPOSITORY: z.string().optional(),
-  SQUIZZLE_STORAGE_PATH: z.string().optional(),
-  
-  // Required for security features
-  SQUIZZLE_SIGNING_ENABLED: z.string().transform(val => val === 'true').optional(),
-  SIGSTORE_OIDC_CLIENT_ID: z.string().optional(),
-  SIGSTORE_OIDC_ISSUER: z.string().url().optional(),
-  
-  // Optional but validated if present
-  SQUIZZLE_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
-  SQUIZZLE_PARALLEL_LIMIT: z.string().transform(Number).pipe(
-    z.number().int().min(1).max(10)
-  ).optional(),
-  SQUIZZLE_LOCK_TIMEOUT: z.string().transform(Number).pipe(
-    z.number().int().min(1000)
-  ).optional(), // milliseconds
-  
-  // Docker config for OCI
-  DOCKER_CONFIG: z.string().optional(),
-  
-  // Node environment
-  NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
-})
-
-// Conditional validation based on features
-const ConfigSchema = z.object({
-  database: z.object({
-    url: z.string(),
-    maxConnections: z.number().int().min(1).default(10),
-    statementTimeout: z.number().int().min(1000).default(30000),
-  }),
-  
-  storage: z.object({
-    type: z.enum(['oci', 'filesystem', 's3']),
-    registry: z.string().optional(),
-    repository: z.string().optional(),
-    path: z.string().optional(),
-  }).refine(
-    (storage) => {
-      if (storage.type === 'oci' && (!storage.registry || !storage.repository)) {
-        return false
-      }
-      if (storage.type === 'filesystem' && !storage.path) {
-        return false
-      }
-      return true
-    },
-    'Storage configuration incomplete for selected type'
-  ),
-  
-  security: z.object({
-    enabled: z.boolean().default(false),
-    provider: z.enum(['sigstore', 'local']).optional(),
-  }).refine(
-    (security) => {
-      if (security.enabled && !security.provider) {
-        return false
-      }
-      return true
-    },
-    'Security provider required when security is enabled'
-  ),
-})
 
 export interface ValidationResult {
   valid: boolean
@@ -83,13 +7,6 @@ export interface ValidationResult {
   suggestions: string[]
 }
 
-interface ToolCheckResult {
-  name: string
-  installed?: string
-  required: string
-  compatible: boolean
-  error?: string
-}
 
 export class ConfigValidator {
   private errors: string[] = []

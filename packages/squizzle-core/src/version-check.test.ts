@@ -9,26 +9,28 @@ describe('VersionChecker', () => {
   let checker: VersionChecker
 
   beforeEach(() => {
+    vi.clearAllMocks()
     checker = new VersionChecker()
     checker.clearCache() // Clear cache before each test
-    vi.clearAllMocks()
   })
 
   describe('checkCompatibility', () => {
     it('should detect compatible versions', async () => {
       // Mock execSync to return valid versions
-      vi.spyOn(cp, 'execSync').mockImplementation((cmd) => {
-        if (cmd.includes('drizzle-kit --version')) {
+      const mockFn = vi.fn().mockImplementation((cmd) => {
+        const cmdStr = cmd.toString()
+        if (cmdStr.includes('drizzle-kit')) {
           return 'drizzle-kit@0.24.2\n'
         }
-        if (cmd.includes('node --version')) {
+        if (cmdStr.includes('node')) {
           return 'v18.17.0\n'
         }
-        if (cmd.includes('psql --version')) {
+        if (cmdStr.includes('psql')) {
           return 'psql (PostgreSQL) 15.3\n'
         }
         return ''
       })
+      vi.spyOn(cp, 'execSync').mockImplementation(mockFn)
       
       const result = await checker.checkCompatibility()
       
@@ -77,13 +79,14 @@ describe('VersionChecker', () => {
 
     it('should parse different version formats correctly', async () => {
       vi.spyOn(cp, 'execSync').mockImplementation((cmd) => {
-        if (cmd.includes('drizzle-kit')) {
+        const cmdStr = cmd.toString()
+        if (cmdStr.includes('drizzle-kit')) {
           return 'drizzle-kit version 0.24.2\ndrizzle-kit@0.24.2'
         }
-        if (cmd.includes('node')) {
+        if (cmdStr.includes('node')) {
           return 'v20.11.0'
         }
-        if (cmd.includes('psql')) {
+        if (cmdStr.includes('psql')) {
           return 'psql (PostgreSQL) 16.1 (Ubuntu 16.1-1.pgdg22.04+1)'
         }
         return ''
@@ -94,7 +97,7 @@ describe('VersionChecker', () => {
       expect(result.compatible).toBe(true)
       expect(result.tools[0].installed).toBe('0.24.2')
       expect(result.tools[1].installed).toBe('20.11.0')
-      expect(result.tools[2].installed).toBe('16.1')
+      expect(result.tools[2].installed).toBe('16.1.0')
     })
 
     it('should cache results for performance', async () => {
@@ -127,7 +130,7 @@ describe('VersionChecker', () => {
       const result = await checker.checkCompatibility()
       
       expect(result.suggestions).toContain('Install compatible Drizzle Kit:')
-      expect(result.suggestions).toContain('npm install --save-dev drizzle-kit@latest')
+      expect(result.suggestions).toContain('  npm install --save-dev drizzle-kit@latest')
     })
 
     it('should provide Node.js update suggestions', async () => {
@@ -141,8 +144,8 @@ describe('VersionChecker', () => {
       const result = await checker.checkCompatibility()
       
       expect(result.suggestions).toContain('Update Node.js to >=18.0.0 or higher:')
-      expect(result.suggestions).toContain('Use nvm: nvm install 18')
-      expect(result.suggestions).toContain('Or download from: https://nodejs.org')
+      expect(result.suggestions).toContain('  Use nvm: nvm install 18')
+      expect(result.suggestions).toContain('  Or download from: https://nodejs.org')
     })
 
     it('should provide PostgreSQL installation suggestions', async () => {
@@ -156,8 +159,8 @@ describe('VersionChecker', () => {
       const result = await checker.checkCompatibility()
       
       expect(result.suggestions).toContain('Install PostgreSQL client tools:')
-      expect(result.suggestions).toContain('macOS: brew install postgresql')
-      expect(result.suggestions).toContain('Ubuntu: apt-get install postgresql-client')
+      expect(result.suggestions).toContain('  macOS: brew install postgresql')
+      expect(result.suggestions).toContain('  Ubuntu: apt-get install postgresql-client')
     })
   })
 })

@@ -36,7 +36,13 @@ const TOOL_REQUIREMENTS: ToolRequirement[] = [
     command: 'psql',
     versionFlag: '--version',
     versionRegex: /(\d+\.\d+)/,
-    required: '>=13.0'
+    required: '>=13.0',
+    parseVersion: (output) => {
+      const match = output.match(/(\d+\.\d+)/)
+      const version = match?.[1] || '0.0'
+      // PostgreSQL versions are often just major.minor, add .0 for semver
+      return version.split('.').length === 2 ? `${version}.0` : version
+    }
   }
 ]
 

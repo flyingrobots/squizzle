@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest'
 import { MigrationEngine } from './engine'
 import { createPostgresDriver } from '@squizzle/postgres'
 import { FilesystemStorage } from '@squizzle/oci'
@@ -39,6 +39,9 @@ describe('MigrationEngine', () => {
   let driver: any
 
   beforeAll(async () => {
+    // Mock environment for tests
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+    
     // Ensure test database is set up
     await setupTestDatabase()
   })
@@ -327,8 +330,8 @@ describe('MigrationEngine', () => {
       
       // Record a dummy system version to track if tables get recreated
       await driver.execute(`
-        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, is_system)
-        VALUES ('test-marker', 'test', 'test', '{}', false)
+        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, success)
+        VALUES ('test-marker', 'test', 'test', '{}', true)
       `)
       
       const version = '1.0.0'

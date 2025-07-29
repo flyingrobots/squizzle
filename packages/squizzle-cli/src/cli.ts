@@ -63,7 +63,7 @@ program
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const driver = createPostgresDriver(config.environments[env]?.database || {})
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
     try {
@@ -147,7 +147,7 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const driver = createPostgresDriver(config.environments[env]?.database || {})
     const storage = createOCIStorage(config.storage)
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
@@ -176,7 +176,7 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const driver = createPostgresDriver(config.environments[env]?.database || {})
     const storage = createOCIStorage(config.storage)
     const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
     
@@ -205,7 +205,7 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const driver = createPostgresDriver(config.environments[env]?.database || {})
     const storage = createOCIStorage(config.storage)
     
     const engine = new MigrationEngine({
@@ -230,7 +230,7 @@ Examples:
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
-    const driver = createPostgresDriver(config.environments[env].database)
+    const driver = createPostgresDriver(config.environments[env]?.database || {})
     const storage = createOCIStorage(config.storage)
     
     const engine = new MigrationEngine({
@@ -301,7 +301,7 @@ program
   .command('doctor')
   .description('Check system health and compatibility')
   .option('--fix', 'attempt to fix issues automatically')
-  .action(async (options) => {
+  .action(async () => {
     const { checkVersionCompatibility, checkDatabaseConnection } = await import('@squizzle/core')
     
     console.log(chalk.bold('\n🩺 Running system diagnostics...\n'))
