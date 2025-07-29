@@ -78,10 +78,10 @@ export class SigstoreProvider implements SecurityProvider {
         },
         parameters: buildInfo.parameters || {},
         environment: {
-          github_run_id: this.options.environment?.github_run_id ?? process.env.GITHUB_RUN_ID,
-          github_run_attempt: this.options.environment?.github_run_attempt ?? process.env.GITHUB_RUN_ATTEMPT,
-          github_actor: this.options.environment?.github_actor ?? process.env.GITHUB_ACTOR,
-          github_event_name: this.options.environment?.github_event_name ?? process.env.GITHUB_EVENT_NAME
+          github_run_id: this.options.environment?.github_run_id,
+          github_run_attempt: this.options.environment?.github_run_attempt,
+          github_actor: this.options.environment?.github_actor,
+          github_event_name: this.options.environment?.github_event_name
         }
       },
       materials
@@ -97,12 +97,28 @@ export interface SLSABuildInfo {
   parameters?: Record<string, any>
 }
 
+export interface LocalSecurityOptions {
+  secret?: string
+  environment?: {
+    node_version?: string
+    platform?: string
+  }
+}
+
 // In-memory signing for development/testing
 export class LocalSecurityProvider implements SecurityProvider {
   private secret: string
+  private environment: LocalSecurityOptions['environment']
 
-  constructor(secret: string = 'development-secret') {
-    this.secret = secret
+  constructor(options?: LocalSecurityOptions | string) {
+    if (typeof options === 'string') {
+      // Backward compatibility
+      this.secret = options
+      this.environment = {}
+    } else {
+      this.secret = options?.secret || 'development-secret'
+      this.environment = options?.environment || {}
+    }
   }
 
   async sign(data: Buffer): Promise<string> {
@@ -129,8 +145,8 @@ export class LocalSecurityProvider implements SecurityProvider {
         },
         parameters: {},
         environment: {
-          node_version: process.version,
-          platform: process.platform
+          node_version: this.environment?.node_version,
+          platform: this.environment?.platform
         }
       },
       materials: []
@@ -142,6 +158,6 @@ export function createSigstoreProvider(options?: SigstoreOptions): SecurityProvi
   return new SigstoreProvider(options)
 }
 
-export function createLocalProvider(secret?: string): SecurityProvider {
-  return new LocalSecurityProvider(secret)
+export function createLocalProvider(options?: LocalSecurityOptions | string): SecurityProvider {
+  return new LocalSecurityProvider(options)
 }
