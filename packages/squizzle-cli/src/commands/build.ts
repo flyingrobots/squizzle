@@ -4,7 +4,7 @@ import { execSync } from 'child_process'
 import { create } from 'tar'
 import ora from 'ora'
 import chalk from 'chalk'
-import { createManifest, Version } from '@squizzle/core'
+import { createManifest, Version, preBuildChecks } from '@squizzle/core'
 import { showSuccess, showError } from '../ui/banner'
 import { Config } from '../config'
 
@@ -20,6 +20,10 @@ export async function buildCommand(version: Version, options: BuildOptions): Pro
   const spinner = ora('Building database version...').start()
   
   try {
+    // Pre-build checks
+    spinner.text = 'Running pre-build checks...'
+    await preBuildChecks(options.config)
+    
     // Step 1: Generate Drizzle migrations
     spinner.text = 'Generating Drizzle migrations...'
     if (!options.dryRun) {

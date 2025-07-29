@@ -19,6 +19,7 @@ import {
 } from './types'
 import { Logger } from './logger'
 import { MigrationError, ChecksumError, VersionError, SecurityError } from './errors'
+import { ConfigValidator, ConfigurationError } from './config-validator'
 
 export interface EngineOptions {
   driver: DatabaseDriver
@@ -36,6 +37,24 @@ export class MigrationEngine {
   private autoInit: boolean
 
   constructor(options: EngineOptions) {
+    // Validate configuration
+    const validator = new ConfigValidator()
+    const result = validator.validate()
+    
+    if (!result.valid) {
+      throw new ConfigurationError(
+        'Invalid configuration',
+        result.errors
+      )
+    }
+    
+    // Log warnings
+    if (result.warnings.length > 0 && options.logger) {
+      result.warnings.forEach(warning => {
+        options.logger!.warn(warning)
+      })
+    }
+    
     this.driver = options.driver
     this.storage = options.storage
     this.security = options.security

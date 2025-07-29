@@ -15,9 +15,13 @@ import { createConfig, loadConfig } from './config'
 import chalk from 'chalk'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { validateEnvironment } from '@squizzle/core'
 
 // Load environment variables
 config()
+
+// Validate environment on startup
+validateEnvironment({ exit: true })
 
 const program = new Command()
 
@@ -243,6 +247,41 @@ program
     } else if (options.show) {
       const config = await loadConfig(program.opts().config)
       console.log(JSON.stringify(config, null, 2))
+    }
+  })
+
+// Doctor command - check system health
+program
+  .command('doctor')
+  .description('Check system health and compatibility')
+  .option('--fix', 'attempt to fix issues automatically')
+  .action(async (options) => {
+    const { checkVersionCompatibility, checkDatabaseConnection } = await import('@squizzle/core')
+    
+    console.log(chalk.bold('\n🩺 Running system diagnostics...\n'))
+    
+    // Check environment
+    console.log(chalk.bold('Environment Variables:'))
+    validateEnvironment({ exit: false })
+    
+    // Check versions
+    const compatible = await checkVersionCompatibility({ exit: false, verbose: true })
+    
+    // Check database connection
+    if (process.env.DATABASE_URL) {
+      console.log(chalk.bold('\nDatabase Connection:'))
+      const dbCheck = await checkDatabaseConnection(process.env.DATABASE_URL)
+      if (dbCheck.connected) {
+        console.log(chalk.green('  ✅ Database connection successful'))
+      } else {
+        console.log(chalk.red(`  ❌ ${dbCheck.error}`))
+      }
+    }
+    
+    if (!compatible) {
+      console.log(chalk.yellow('\n⚕️  Some issues were found. Run with --fix to attempt automatic fixes.'))
+    } else {
+      console.log(chalk.green('\n✅ All systems healthy!'))
     }
   })
 
