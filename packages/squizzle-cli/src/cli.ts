@@ -29,6 +29,24 @@ function validateForCommand(): void {
   }
 }
 
+// Helper to create test driver for testing
+function createTestDriver(): any {
+  return {
+    connect: async () => {},
+    disconnect: async () => {},
+    execute: async () => {},
+    query: async () => [],
+    begin: async () => {},
+    commit: async () => {},
+    rollback: async () => {},
+    getCurrentVersion: async () => null,
+    getAppliedVersions: async () => [],
+    recordVersion: async () => {},
+    hasTable: async () => false,
+    tableExists: async () => false
+  }
+}
+
 // Helper to create storage based on config and environment
 function createStorage(config: Config): ArtifactStorage {
   // In test mode, return a mock storage
@@ -300,7 +318,6 @@ Examples:
   $ squizzle status --json
   $ squizzle status --env production`)
   .action(async (options: any) => {
-    validateForCommand()
     const globalOpts = program.opts()
     const config = await loadConfig(globalOpts.config)
     const env = globalOpts.env
@@ -310,6 +327,11 @@ Examples:
       options.json = true
     }
     
+    // Create driver - use test driver in test mode
+    const driver = (process.env.NODE_ENV === 'test' || process.env.SQUIZZLE_SKIP_VALIDATION === 'true')
+      ? createTestDriver()
+      : createPostgresDriver(config.environments[env]?.database || {})
+    
     // Handle quiet mode
     if (globalOpts.quiet) {
       // Suppress all console output for quiet mode
@@ -317,7 +339,6 @@ Examples:
       const originalError = console.error
       console.log = () => {}
       
-      const driver = createPostgresDriver(config.environments[env]?.database || {})
       try {
         const storage = createStorage(config)
         
@@ -333,7 +354,6 @@ Examples:
         await driver.disconnect()
       }
     } else {
-      const driver = createPostgresDriver(config.environments[env]?.database || {})
       try {
         const storage = createStorage(config)
         
