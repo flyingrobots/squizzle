@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { createManifest, ManifestOptions } from './manifest'
-import { Version } from './types'
+import { createManifest, ManifestOptions } from '../src/manifest'
+import { Version } from '../src/types'
 import { createHash } from 'crypto'
 
 describe('createManifest', () => {

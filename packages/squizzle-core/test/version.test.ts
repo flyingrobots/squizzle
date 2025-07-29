@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { isValidVersion, compareVersions, getNextVersion } from './version'
-import { Version } from './types'
+import { isValidVersion, compareVersions, getNextVersion } from '../src/version'
+import { Version } from '../src/types'
 
 describe('version utilities', () => {
   describe('isValidVersion', () => {

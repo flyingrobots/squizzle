@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { statusCommand } from './status'
+import { statusCommand } from '../../src/commands/status'
 import { MigrationEngine, Version } from '@squizzle/core'
 
 // Mock cli-table3

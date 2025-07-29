@@ -8,7 +8,7 @@ import {
   SecurityError,
   StorageError,
   DatabaseError
-} from './errors'
+} from '../src/errors'
 
 describe('Error Classes', () => {
   describe('SquizzleError', () => {

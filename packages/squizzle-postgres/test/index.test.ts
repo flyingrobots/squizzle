@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { PostgresDriver, createPostgresDriver, PostgresDriverOptions } from './index'
+import { PostgresDriver, createPostgresDriver, PostgresDriverOptions } from '../src/index'
 import { DatabaseError, LockError, Version, Manifest } from '@squizzle/core'
 import { Pool, PoolClient } from 'pg'
 
@@ -135,7 +135,7 @@ describe('PostgresDriver', () => {
       await driver.connect()
 
       expect(mockPool.connect).toHaveBeenCalled()
-      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS squizzle_versions'))
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE SCHEMA IF NOT EXISTS squizzle'))
     })
 
     it('should throw DatabaseError on connection failure', async () => {
@@ -150,7 +150,10 @@ describe('PostgresDriver', () => {
 
       await driver.connect()
 
-      const createTableCall = mockClient.query.mock.calls[0][0]
+      // First call creates schema, second call creates table with indexes
+      expect(mockClient.query.mock.calls[0][0]).toContain('CREATE SCHEMA IF NOT EXISTS squizzle')
+      const createTableCall = mockClient.query.mock.calls[1][0]
+      expect(createTableCall).toContain('CREATE TABLE IF NOT EXISTS squizzle.versions')
       expect(createTableCall).toContain('CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at')
       expect(createTableCall).toContain('CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success')
     })
@@ -227,7 +230,8 @@ describe('PostgresDriver', () => {
       const result = await driver.query('SELECT * FROM users')
 
       expect(result).toEqual(mockRows)
-      expect(mockClient.query).toHaveBeenCalledWith('SELECT * FROM users')
+      // Third call should be our query (after schema and table creation)
+      expect(mockClient.query).toHaveBeenNthCalledWith(3, 'SELECT * FROM users', undefined)
     })
 
     it('should handle empty results', async () => {
@@ -361,7 +365,7 @@ describe('PostgresDriver', () => {
         appliedBy: 'user1',
         checksum: 'abc123',
         success: true,
-        error: null,
+        error: undefined,
         rollbackOf: undefined
       })
       expect(result[1]).toEqual({
@@ -382,7 +386,7 @@ describe('PostgresDriver', () => {
 
       // Find the SELECT query (not the CREATE TABLE query)
       const selectQuery = mockClient.query.mock.calls.find(call => 
-        call[0].includes('SELECT') && call[0].includes('FROM squizzle_versions')
+        call[0].includes('SELECT') && call[0].includes('FROM squizzle.versions')
       )
       expect(selectQuery).toBeDefined()
       expect(selectQuery[0]).toContain('ORDER BY applied_at DESC')
@@ -423,7 +427,7 @@ describe('PostgresDriver', () => {
       await driver.recordVersion('1.0.0' as Version, manifest, true)
 
       expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO squizzle_versions'),
+        expect.stringContaining('INSERT INTO squizzle.versions'),
         [
           '1.0.0',
           'abc123',
@@ -535,6 +539,74 @@ describe('PostgresDriver', () => {
 
       await expect(driver.lock('error_lock')).rejects.toThrow(LockError)
       await expect(driver.lock('error_lock')).rejects.toThrow('Failed to acquire lock error_lock')
+    })
+  })
+
+  describe('hasTable', () => {
+    beforeEach(async () => {
+      driver = new PostgresDriver({})
+      mockClient.query.mockResolvedValue({ rows: [] })
+      await driver.connect()
+    })
+
+    it('should check for squizzle system table in squizzle schema', async () => {
+      mockClient.query.mockResolvedValue({ rows: [{ exists: true }] })
+
+      const result = await driver.hasTable('squizzle_versions')
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('table_schema = \'squizzle\' AND table_name = \'versions\''),
+        undefined
+      )
+      expect(result).toBe(true)
+    })
+
+    it('should check for user tables in public schema', async () => {
+      mockClient.query.mockResolvedValue({ rows: [{ exists: false }] })
+
+      const result = await driver.hasTable('users')
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('table_schema = \'public\' AND table_name = $1'),
+        ['users']
+      )
+      expect(result).toBe(false)
+    })
+
+    it('should handle missing result', async () => {
+      mockClient.query.mockResolvedValue({ rows: [] })
+
+      const result = await driver.hasTable('missing')
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('hasVersion', () => {
+    beforeEach(async () => {
+      driver = new PostgresDriver({})
+      mockClient.query.mockResolvedValue({ rows: [] })
+      await driver.connect()
+    })
+
+    it('should check if version exists', async () => {
+      mockClient.query.mockResolvedValue({ rows: [{ exists: true }] })
+
+      const result = await driver.hasVersion('1.0.0')
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT EXISTS(SELECT 1 FROM squizzle.versions WHERE version = $1)'),
+        ['1.0.0']
+      )
+      expect(result).toBe(true)
+    })
+
+    it('should return false for non-existent version', async () => {
+      mockClient.query.mockResolvedValue({ rows: [{ exists: false }] })
+
+      const result = await driver.hasVersion('2.0.0')
+
+      expect(result).toBe(false)
     })
   })
 

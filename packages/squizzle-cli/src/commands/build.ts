@@ -9,7 +9,7 @@ import { createHash } from 'crypto'
 import ora from 'ora'
 import chalk from 'chalk'
 import prettyBytes from 'pretty-bytes'
-import { createManifest, Version } from '@squizzle/core'
+import { createManifest, Version, preBuildChecks } from '@squizzle/core'
 import { showSuccess, showError } from '../ui/banner'
 import { Config } from '../config'
 
@@ -49,6 +49,10 @@ export async function buildCommand(version: Version, options: BuildOptions): Pro
   const spinner = ora('Scanning for migrations...').start()
   
   try {
+    // Pre-build checks
+    spinner.text = 'Running pre-build checks...'
+    await preBuildChecks(options.config)
+    
     // Step 1: Generate Drizzle migrations
     if (!options.dryRun) {
       spinner.text = 'Generating Drizzle migrations...'

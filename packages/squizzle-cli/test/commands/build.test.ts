@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { buildCommand } from './build'
+import { buildCommand } from '../../src/commands/build'
 import { mkdir, writeFile, rm, readFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -27,6 +27,27 @@ vi.mock('../ui/banner', () => ({
   showError: vi.fn()
 }))
 
+// Mock config validator and version check
+vi.mock('@squizzle/core', async () => {
+  const actual = await vi.importActual('@squizzle/core')
+  return {
+    ...actual,
+    ConfigValidator: vi.fn().mockImplementation(() => ({
+      validate: vi.fn().mockReturnValue({ valid: true, errors: [], warnings: [] })
+    })),
+    checkToolVersions: vi.fn().mockResolvedValue({
+      compatible: true,
+      tools: []
+    }),
+    preBuildChecks: vi.fn().mockResolvedValue(undefined)
+  }
+})
+
+// Intercept process.exit
+const processExit = vi.spyOn(process, 'exit').mockImplementation((code) => {
+  throw new Error(`process.exit unexpectedly called with "${code}"`)
+})
+
 describe('buildCommand', () => {
   let testDir: string
   let originalCwd: string
@@ -43,6 +64,11 @@ describe('buildCommand', () => {
         'drizzle-kit': '0.25.0'
       }
     }))
+    
+    // Reset mocks and set default behavior
+    vi.clearAllMocks()
+    const mockExecSync = execSync as unknown as ReturnType<typeof vi.fn>
+    mockExecSync.mockReturnValue('')
   })
 
   afterEach(async () => {
@@ -255,7 +281,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.createdBy).toBe('test-user')
+      expect(manifest.author).toBe('test-user')
     })
 
     it('should use USER env variable for author if not provided', async () => {
@@ -274,7 +300,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.createdBy).toBe('env-user')
+      expect(manifest.author).toBe('env-user')
 
       process.env.USER = originalUser
     })
@@ -292,7 +318,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('0.25.0')
+      expect(manifest.drizzleKit).toBe('0.25.0')
     })
 
     it('should handle missing Drizzle Kit version', async () => {
@@ -313,7 +339,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('unknown')
+      expect(manifest.drizzleKit).toBe('unknown')
     })
   })
 
@@ -387,8 +413,9 @@ describe('buildCommand', () => {
         config: mockConfig 
       })
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Files: 1'))
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Checksum:'))
+      // Check that the build preview was shown
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Build Preview:'))
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Total Files'))
 
       consoleSpy.mockRestore()
     })
@@ -408,15 +435,10 @@ describe('buildCommand', () => {
         }
       }
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
-        throw new Error('Process exit')
-      })
-
       await expect(buildCommand('1.0.0' as Version, { config: mockConfig }))
-        .rejects.toThrow('Process exit')
+        .rejects.toThrow('process.exit unexpectedly called with "1"')
 
-      expect(mockExit).toHaveBeenCalledWith(1)
-      mockExit.mockRestore()
+      expect(processExit).toHaveBeenCalledWith(1)
     })
 
     it('should handle missing package.json gracefully', async () => {
@@ -434,7 +456,7 @@ describe('buildCommand', () => {
       const manifestPath = join(testDir, '.squizzle/build/1.0.0/manifest.json')
       const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
       
-      expect(manifest.drizzleVersion).toBe('unknown')
+      expect(manifest.drizzleKit).toBe('unknown')
     })
   })
 

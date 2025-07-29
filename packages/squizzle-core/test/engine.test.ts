@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest'
-import { MigrationEngine } from './engine'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest'
+import { MigrationEngine } from '../src/engine'
 import { createPostgresDriver } from '@squizzle/postgres'
 import { FilesystemStorage } from '@squizzle/oci'
 import { LocalSecurityProvider } from '@squizzle/security'
-import { createManifest } from './manifest'
+import { createManifest } from '../src/manifest'
 import { create, extract } from 'tar'
 import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
@@ -39,6 +39,11 @@ describe('MigrationEngine', () => {
   let driver: any
 
   beforeAll(async () => {
+    // Mock environment for tests if not in CI
+    if (!process.env.CI) {
+      vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+    }
+    
     // Ensure test database is set up
     await setupTestDatabase()
   })
@@ -108,16 +113,18 @@ describe('MigrationEngine', () => {
       
       // Verify version recorded
       const versions = await driver.getAppliedVersions()
-      expect(versions).toHaveLength(1)
-      expect(versions[0].version).toBe(version)
-      expect(versions[0].success).toBe(true)
+      // Should have system version and the test version
+      expect(versions).toHaveLength(2)
+      const testVersion = versions.find(v => v.version === version)
+      expect(testVersion).toBeDefined()
+      expect(testVersion?.success).toBe(true)
     })
 
     it('should handle migration failures', async () => {
       const version = '1.0.1'
       
       // Clean up any existing version record
-      await driver.execute(`DELETE FROM squizzle_versions WHERE version = '${version}'`)
+      await driver.execute(`DELETE FROM squizzle.versions WHERE version = '${version}'`)
       
       // Load pre-built test artifact with invalid SQL
       const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.1.tar.gz')
@@ -180,9 +187,10 @@ describe('MigrationEngine', () => {
       `)
       expect(tables).toHaveLength(0)
       
-      // Verify version NOT recorded
+      // Verify version NOT recorded (only system version should exist)
       const versions = await driver.getAppliedVersions()
-      expect(versions).toHaveLength(0)
+      expect(versions).toHaveLength(1)
+      expect(versions[0].version).toBe('system-v1.0.0')
     })
   })
 
@@ -226,7 +234,8 @@ describe('MigrationEngine', () => {
       // Get status
       const status = await engine.status()
       expect(status.current).toBe(version)
-      expect(status.applied).toHaveLength(1)
+      // Should have system version and the test version
+      expect(status.applied).toHaveLength(2)
       expect(status.available).toContain(version)
     })
   })
@@ -234,7 +243,7 @@ describe('MigrationEngine', () => {
   describe('systemTables', () => {
     it('should auto-initialize system tables when missing', async () => {
       // Drop system tables to simulate fresh database
-      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      await driver.execute('DROP SCHEMA IF EXISTS squizzle CASCADE')
       
       // Create engine with autoInit enabled (default)
       const autoEngine = new MigrationEngine({
@@ -260,15 +269,15 @@ describe('MigrationEngine', () => {
       const tables = await driver.query(`
         SELECT table_name 
         FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+        WHERE table_schema = 'squizzle' AND table_name = 'versions'
       `)
       expect(tables).toHaveLength(1)
       
       // Verify system version was recorded
       const systemVersions = await driver.query(`
-        SELECT version, is_system 
-        FROM squizzle_versions 
-        WHERE is_system = true
+        SELECT version 
+        FROM squizzle.versions 
+        WHERE version = 'system-v1.0.0'
       `)
       expect(systemVersions).toHaveLength(1)
       expect(systemVersions[0].version).toBe('system-v1.0.0')
@@ -276,7 +285,7 @@ describe('MigrationEngine', () => {
 
     it('should throw error when system tables missing and autoInit disabled', async () => {
       // Drop system tables to simulate fresh database
-      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      await driver.execute('DROP SCHEMA IF EXISTS squizzle CASCADE')
       
       // Create engine with autoInit disabled
       const noAutoEngine = new MigrationEngine({
@@ -304,7 +313,7 @@ describe('MigrationEngine', () => {
       const tables = await driver.query(`
         SELECT table_name 
         FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+        WHERE table_schema = 'squizzle' AND table_name = 'versions'
       `)
       expect(tables).toHaveLength(0)
     })
@@ -315,8 +324,8 @@ describe('MigrationEngine', () => {
       
       // Record a dummy system version to track if tables get recreated
       await driver.execute(`
-        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, is_system)
-        VALUES ('test-marker', 'test', 'test', '{}', false)
+        INSERT INTO squizzle.versions (version, checksum, applied_by, manifest, success)
+        VALUES ('test-marker', 'test', 'test', '{}', true)
       `)
       
       const version = '1.0.0'
@@ -334,7 +343,7 @@ describe('MigrationEngine', () => {
       
       // Verify our test marker is still there
       const markers = await driver.query(`
-        SELECT version FROM squizzle_versions WHERE version = 'test-marker'
+        SELECT version FROM squizzle.versions WHERE version = 'test-marker'
       `)
       expect(markers).toHaveLength(1)
     })
