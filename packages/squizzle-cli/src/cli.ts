@@ -2,7 +2,7 @@
 import { Command } from 'commander'
 import { createPostgresDriver } from '@squizzle/postgres'
 import { createOCIStorage } from '@squizzle/oci'
-import { MigrationEngine, Logger } from '@squizzle/core'
+import { MigrationEngine, Logger, addTelemetryToCommand } from '@squizzle/core'
 import { config } from 'dotenv'
 import { buildCommand } from './commands/build'
 import { applyCommand } from './commands/apply'
@@ -35,6 +35,9 @@ program
       showBanner()
     }
   })
+
+// Add telemetry support
+addTelemetryToCommand(program)
 
 // Initialize project command
 program
