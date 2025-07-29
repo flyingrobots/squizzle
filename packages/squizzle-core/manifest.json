@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "previousVersion": null,
+  "created": "2025-07-28T16:31:21.819Z",
+  "checksum": "117d6149272fd6b3dd169ca65ab3f66e2af195feb1178d0930676c32c3977b15",
+  "checksumAlgorithm": "sha256",
+  "drizzleKit": "0.20.0",
+  "engineVersion": "1.0.0",
+  "notes": "Test migration 1.0.0",
+  "author": "test-suite",
+  "files": [
+    {
+      "path": "drizzle/001_create_table.sql",
+      "checksum": "cb10cdcb4f67daf9645ad714afa2523058820507201ed0839085cca615e48845",
+      "size": 59,
+      "type": "drizzle"
+    }
+  ],
+  "dependencies": [],
+  "platform": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "v24.2.0"
+  }
+}
