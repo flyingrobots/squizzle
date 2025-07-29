@@ -11,6 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: squizzle_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -48,6 +67,13 @@ jobs:
       run: pnpm test:integration
       env:
         CI: true
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: squizzle_test
+        REGISTRY_HOST: localhost
+        REGISTRY_PORT: 5000
         
     - name: Upload test results
       if: failure()

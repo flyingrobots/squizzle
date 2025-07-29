@@ -25,7 +25,32 @@ export interface IntegrationTestEnv {
 }
 
 export async function setupIntegrationTest(): Promise<IntegrationTestEnv> {
-  // Spin up PostgreSQL
+  // Create temp directory for artifacts
+  const tempDir = await mkdtemp(join(tmpdir(), 'squizzle-integration-'))
+  
+  // Check if running in CI with services
+  if (process.env.CI && process.env.POSTGRES_HOST) {
+    return {
+      postgres: {
+        host: process.env.POSTGRES_HOST || 'localhost',
+        port: parseInt(process.env.POSTGRES_PORT || '5432'),
+        database: process.env.POSTGRES_DB || 'squizzle_test',
+        user: process.env.POSTGRES_USER || 'postgres',
+        password: process.env.POSTGRES_PASSWORD || 'test'
+      },
+      registry: {
+        host: process.env.REGISTRY_HOST || 'localhost',
+        port: parseInt(process.env.REGISTRY_PORT || '5000'),
+        url: `${process.env.REGISTRY_HOST || 'localhost'}:${process.env.REGISTRY_PORT || '5000'}`
+      },
+      tempDir,
+      cleanup: async () => {
+        await rm(tempDir, { recursive: true, force: true })
+      }
+    }
+  }
+  
+  // Local development - use testcontainers
   const postgres = await new GenericContainer('postgres:15')
     .withEnvironment({
       POSTGRES_PASSWORD: 'test',
@@ -40,9 +65,6 @@ export async function setupIntegrationTest(): Promise<IntegrationTestEnv> {
     .withExposedPorts(5000)
     .withWaitStrategy(Wait.forHttp('/v2/', 5000))
     .start()
-  
-  // Create temp directory for artifacts
-  const tempDir = await mkdtemp(join(tmpdir(), 'squizzle-integration-'))
   
   return {
     postgres: {
