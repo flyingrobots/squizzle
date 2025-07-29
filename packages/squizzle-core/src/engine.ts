@@ -393,7 +393,7 @@ export class MigrationEngine {
   private async ensureSystemTables(): Promise<void> {
     try {
       // Try to query the versions table
-      await this.driver.query('SELECT 1 FROM squizzle_versions LIMIT 1')
+      await this.driver.query('SELECT 1 FROM squizzle.squizzle_versions LIMIT 1')
       // If successful, tables exist
       return
     } catch (error) {

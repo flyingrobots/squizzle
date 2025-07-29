@@ -54,7 +54,7 @@ export async function setupTestDatabase() {
 export async function cleanupTestDatabase() {
   // Truncate all tables to ensure clean state
   const sql = `
-    TRUNCATE TABLE squizzle_versions CASCADE;
+    TRUNCATE TABLE squizzle.squizzle_versions CASCADE;
     DROP TABLE IF EXISTS test_table CASCADE;
   `
   

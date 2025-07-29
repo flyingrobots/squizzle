@@ -117,7 +117,7 @@ describe('MigrationEngine', () => {
       const version = '1.0.1'
       
       // Clean up any existing version record
-      await driver.execute(`DELETE FROM squizzle_versions WHERE version = '${version}'`)
+      await driver.execute(`DELETE FROM squizzle.squizzle_versions WHERE version = '${version}'`)
       
       // Load pre-built test artifact with invalid SQL
       const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.1.tar.gz')
@@ -234,7 +234,7 @@ describe('MigrationEngine', () => {
   describe('systemTables', () => {
     it('should auto-initialize system tables when missing', async () => {
       // Drop system tables to simulate fresh database
-      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      await driver.execute('DROP TABLE IF EXISTS squizzle.squizzle_versions CASCADE')
       
       // Create engine with autoInit enabled (default)
       const autoEngine = new MigrationEngine({
@@ -260,14 +260,14 @@ describe('MigrationEngine', () => {
       const tables = await driver.query(`
         SELECT table_name 
         FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+        WHERE table_schema = 'squizzle' AND table_name = 'squizzle_versions'
       `)
       expect(tables).toHaveLength(1)
       
       // Verify system version was recorded
       const systemVersions = await driver.query(`
         SELECT version, is_system 
-        FROM squizzle_versions 
+        FROM squizzle.squizzle_versions 
         WHERE is_system = true
       `)
       expect(systemVersions).toHaveLength(1)
@@ -276,7 +276,7 @@ describe('MigrationEngine', () => {
 
     it('should throw error when system tables missing and autoInit disabled', async () => {
       // Drop system tables to simulate fresh database
-      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      await driver.execute('DROP TABLE IF EXISTS squizzle.squizzle_versions CASCADE')
       
       // Create engine with autoInit disabled
       const noAutoEngine = new MigrationEngine({
@@ -304,7 +304,7 @@ describe('MigrationEngine', () => {
       const tables = await driver.query(`
         SELECT table_name 
         FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+        WHERE table_schema = 'squizzle' AND table_name = 'squizzle_versions'
       `)
       expect(tables).toHaveLength(0)
     })
@@ -315,7 +315,7 @@ describe('MigrationEngine', () => {
       
       // Record a dummy system version to track if tables get recreated
       await driver.execute(`
-        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, is_system)
+        INSERT INTO squizzle.squizzle_versions (version, checksum, applied_by, manifest, is_system)
         VALUES ('test-marker', 'test', 'test', '{}', false)
       `)
       
@@ -334,7 +334,7 @@ describe('MigrationEngine', () => {
       
       // Verify our test marker is still there
       const markers = await driver.query(`
-        SELECT version FROM squizzle_versions WHERE version = 'test-marker'
+        SELECT version FROM squizzle.squizzle_versions WHERE version = 'test-marker'
       `)
       expect(markers).toHaveLength(1)
     })

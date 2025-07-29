@@ -135,7 +135,7 @@ describe('PostgresDriver', () => {
       await driver.connect()
 
       expect(mockPool.connect).toHaveBeenCalled()
-      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS squizzle_versions'))
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS squizzle.squizzle_versions'))
     })
 
     it('should throw DatabaseError on connection failure', async () => {
@@ -153,6 +153,7 @@ describe('PostgresDriver', () => {
       const createTableCall = mockClient.query.mock.calls[0][0]
       expect(createTableCall).toContain('CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at')
       expect(createTableCall).toContain('CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success')
+      expect(createTableCall).toContain('CREATE SCHEMA IF NOT EXISTS squizzle')
     })
   })
 
@@ -382,7 +383,7 @@ describe('PostgresDriver', () => {
 
       // Find the SELECT query (not the CREATE TABLE query)
       const selectQuery = mockClient.query.mock.calls.find(call => 
-        call[0].includes('SELECT') && call[0].includes('FROM squizzle_versions')
+        call[0].includes('SELECT') && call[0].includes('FROM squizzle.squizzle_versions')
       )
       expect(selectQuery).toBeDefined()
       expect(selectQuery[0]).toContain('ORDER BY applied_at DESC')
@@ -423,7 +424,7 @@ describe('PostgresDriver', () => {
       await driver.recordVersion('1.0.0' as Version, manifest, true)
 
       expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO squizzle_versions'),
+        expect.stringContaining('INSERT INTO squizzle.squizzle_versions'),
         [
           '1.0.0',
           'abc123',

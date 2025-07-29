@@ -1,11 +1,15 @@
 -- Squizzle System Tables v1.0.0
 -- DO NOT MODIFY - This file is part of Squizzle's core functionality
 
--- Create schema if needed
-CREATE SCHEMA IF NOT EXISTS public;
+-- Create squizzle schema for system tables
+CREATE SCHEMA IF NOT EXISTS squizzle;
 
--- Version tracking table
-CREATE TABLE IF NOT EXISTS squizzle_versions (
+-- Grant usage on schema to current user
+GRANT USAGE ON SCHEMA squizzle TO CURRENT_USER;
+GRANT CREATE ON SCHEMA squizzle TO CURRENT_USER;
+
+-- Version tracking table in squizzle schema
+CREATE TABLE IF NOT EXISTS squizzle.squizzle_versions (
   id SERIAL PRIMARY KEY,
   version VARCHAR(50) NOT NULL UNIQUE,
   checksum VARCHAR(128) NOT NULL,
@@ -21,13 +25,13 @@ CREATE TABLE IF NOT EXISTS squizzle_versions (
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at 
-  ON squizzle_versions(applied_at DESC);
+  ON squizzle.squizzle_versions(applied_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success 
-  ON squizzle_versions(success);
+  ON squizzle.squizzle_versions(success);
 
 CREATE INDEX IF NOT EXISTS idx_squizzle_versions_is_system 
-  ON squizzle_versions(is_system);
+  ON squizzle.squizzle_versions(is_system);
 
 -- Future tables can be added here:
 -- squizzle_locks (distributed locking)
@@ -35,11 +39,11 @@ CREATE INDEX IF NOT EXISTS idx_squizzle_versions_is_system
 -- squizzle_environments (multi-env tracking)
 
 -- Add table comments
-COMMENT ON TABLE squizzle_versions IS 'Tracks all applied database versions including system versions';
-COMMENT ON COLUMN squizzle_versions.is_system IS 'True for Squizzle system migrations, false for application migrations';
+COMMENT ON TABLE squizzle.squizzle_versions IS 'Tracks all applied database versions including system versions';
+COMMENT ON COLUMN squizzle.squizzle_versions.is_system IS 'True for Squizzle system migrations, false for application migrations';
 
 -- Mark system version as applied
-INSERT INTO squizzle_versions (
+INSERT INTO squizzle.squizzle_versions (
   version, 
   checksum, 
   applied_by, 

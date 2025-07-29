@@ -21,6 +21,76 @@ vi.mock('fs', () => ({
   unlinkSync: vi.fn()
 }))
 
+// Mock https module
+vi.mock('https', () => ({
+  request: vi.fn(() => {
+    const req = {
+      on: vi.fn(),
+      write: vi.fn(),
+      end: vi.fn(),
+      setTimeout: vi.fn(),
+      setNoDelay: vi.fn(),
+      setSocketKeepAlive: vi.fn()
+    }
+    // Simulate async response
+    setTimeout(() => {
+      const res = {
+        statusCode: 200,
+        headers: {},
+        on: vi.fn((event, handler) => {
+          if (event === 'data') {
+            handler(Buffer.from('{"tags":[]}'))
+          }
+          if (event === 'end') {
+            handler()
+          }
+        })
+      }
+      // Find the 'response' listener and call it
+      const responseListener = req.on.mock.calls.find(call => call[0] === 'response')?.[1]
+      if (responseListener) {
+        responseListener(res)
+      }
+    }, 0)
+    return req
+  })
+}))
+
+// Mock http module  
+vi.mock('http', () => ({
+  request: vi.fn(() => {
+    const req = {
+      on: vi.fn(),
+      write: vi.fn(),
+      end: vi.fn(),
+      setTimeout: vi.fn(),
+      setNoDelay: vi.fn(),
+      setSocketKeepAlive: vi.fn()
+    }
+    // Simulate async response
+    setTimeout(() => {
+      const res = {
+        statusCode: 200,
+        headers: {},
+        on: vi.fn((event, handler) => {
+          if (event === 'data') {
+            handler(Buffer.from('{"tags":[]}'))
+          }
+          if (event === 'end') {
+            handler()
+          }
+        })
+      }
+      // Find the 'response' listener and call it
+      const responseListener = req.on.mock.calls.find(call => call[0] === 'response')?.[1]
+      if (responseListener) {
+        responseListener(res)
+      }
+    }, 0)
+    return req
+  })
+}))
+
 describe('OCIStorage', () => {
   let storage: OCIStorage
   let mockExecSync: jest.Mock
@@ -236,17 +306,24 @@ describe('OCIStorage', () => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })
 
-    it('should return empty array (not implemented)', async () => {
-      mockExecSync.mockReturnValue('localhost:5000/squizzle-artifacts\n')
-
+    it('should return empty array when no tags', async () => {
+      // Mock the makeAuthenticatedRequest method directly
+      vi.spyOn(storage as any, 'makeAuthenticatedRequest').mockResolvedValue({
+        statusCode: 200,
+        headers: {},
+        body: '{"tags":[]}'
+      })
+      
       const result = await storage.list()
-
       expect(result).toEqual([])
     })
 
-    it('should throw StorageError on list failure', async () => {
-      mockExecSync.mockImplementation(() => {
-        throw new Error('Search failed')
+    it('should handle HTTP errors properly', async () => {
+      // Mock a failed HTTP response
+      vi.spyOn(storage as any, 'makeAuthenticatedRequest').mockResolvedValue({
+        statusCode: 500,
+        headers: {},
+        body: 'Internal Server Error'
       })
 
       await expect(storage.list()).rejects.toThrow(StorageError)
@@ -258,11 +335,21 @@ describe('OCIStorage', () => {
       storage = new OCIStorage({ registry: 'localhost:5000' })
     })
 
-    it('should throw not implemented error', async () => {
-      await expect(storage.delete('1.0.0' as Version))
-        .rejects.toThrow(StorageError)
-      await expect(storage.delete('1.0.0' as Version))
-        .rejects.toThrow('Deletion not implemented for OCI storage')
+    it('should delete version from registry', async () => {
+      // Mock successful delete flow
+      let callCount = 0
+      vi.spyOn(storage as any, 'makeAuthenticatedRequest').mockImplementation(() => {
+        const response = callCount === 0 
+          ? { statusCode: 200, headers: { 'docker-content-digest': 'sha256:abc123' }, body: '{}' }
+          : callCount === 1
+          ? { statusCode: 202, headers: {}, body: '' }
+          : { statusCode: 404, headers: {}, body: '' }
+        callCount++
+        return Promise.resolve(response)
+      })
+
+      await expect(storage.delete('1.0.0' as Version)).resolves.toBeUndefined()
+      expect((storage as any).makeAuthenticatedRequest).toHaveBeenCalledTimes(3) // GET manifest, DELETE, HEAD verify
     })
   })
 
