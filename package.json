@@ -27,6 +27,9 @@
         "drizzle-kit"
     ],
     "packageManager": "pnpm@10.13.1",
+    "engines": {
+        "node": ">=20.0.0"
+    },
     "scripts": {
         "build": "pnpm -r build",
         "test": "pnpm -r test",
