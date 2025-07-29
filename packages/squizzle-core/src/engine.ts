@@ -1,5 +1,4 @@
 import { createHash } from 'crypto'
-import { z } from 'zod'
 import pLimit from 'p-limit'
 import * as tar from 'tar'
 import { pipeline } from 'stream/promises'
@@ -19,6 +18,7 @@ import {
 } from './types'
 import { Logger } from './logger'
 import { MigrationError, ChecksumError, VersionError, SecurityError } from './errors'
+import { ConfigValidator, ConfigurationError } from './config-validator'
 
 export interface EngineOptions {
   driver: DatabaseDriver
@@ -36,6 +36,24 @@ export class MigrationEngine {
   private autoInit: boolean
 
   constructor(options: EngineOptions) {
+    // Validate configuration
+    const validator = new ConfigValidator()
+    const result = validator.validate()
+    
+    if (!result.valid) {
+      throw new ConfigurationError(
+        'Invalid configuration',
+        result.errors
+      )
+    }
+    
+    // Log warnings
+    if (result.warnings.length > 0 && options.logger) {
+      result.warnings.forEach(warning => {
+        options.logger!.warn(warning)
+      })
+    }
+    
     this.driver = options.driver
     this.storage = options.storage
     this.security = options.security
@@ -229,7 +247,7 @@ export class MigrationEngine {
     return { valid: errors.length === 0, errors }
   }
 
-  private async verifyIntegrity(artifact: Buffer, manifest: Manifest): Promise<void> {
+  private async verifyIntegrity(_artifact: Buffer, manifest: Manifest): Promise<void> {
     // The manifest checksum is calculated from the sorted file paths and their checksums.
     // Individual file checksums are verified during extraction in extractMigrations.
     // Here we verify that the manifest checksum matches what we calculate from the files.

@@ -108,9 +108,15 @@ importers:
 
   packages/squizzle-core:
     dependencies:
+      chalk:
+        specifier: ^5.3.0
+        version: 5.4.1
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
+      semver:
+        specifier: ^7.5.4
+        version: 7.7.2
       tar:
         specifier: ^7.4.3
         version: 7.4.3
@@ -124,6 +130,9 @@ importers:
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.9
+      '@types/semver':
+        specifier: ^7.5.6
+        version: 7.7.0
       '@types/tar':
         specifier: ^6.1.13
         version: 6.1.13
@@ -934,11 +943,16 @@ packages:
   '@types/pg@8.15.4':
     resolution: {integrity: sha512-I6UNVBAoYbvuWkkU3oosC8yxqH21f4/Jc4DK71JLG3dT2mdlGe1z+ep/LQGXaKaOgcvUrsQoPRqfgtMcvZiJhg==}
 
+<<<<<<< HEAD
   '@types/ssh2-streams@0.1.12':
     resolution: {integrity: sha512-Sy8tpEmCce4Tq0oSOYdfqaBpA3hDM8SoxoFh5vzFsu2oL+znzGz8oVWW7xb4K920yYMUY+PIG31qZnFMfPWNCg==}
 
   '@types/ssh2@0.5.52':
     resolution: {integrity: sha512-lbLLlXxdCZOSJMCInKH2+9V/77ET2J6NPQHpFI0kda61Dd1KglJs+fPQBchizmzYSOJBgdTajhPqBO1xxLywvg==}
+=======
+  '@types/semver@7.7.0':
+    resolution: {integrity: sha512-k107IF4+Xr7UHjwDc7Cfd6PRQfbdkiRabXGRjo07b4WyPahFBZCZ1sE+BNxYIJPPg73UkfOsVOLwqVc/6ETrIA==}
+>>>>>>> origin/release/v0.1.0
 
   '@types/ssh2@1.15.5':
     resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==}
@@ -3489,6 +3503,7 @@ snapshots:
       pg-protocol: 1.10.3
       pg-types: 2.2.0
 
+<<<<<<< HEAD
   '@types/ssh2-streams@0.1.12':
     dependencies:
       '@types/node': 20.19.9
@@ -3497,6 +3512,9 @@ snapshots:
     dependencies:
       '@types/node': 20.19.9
       '@types/ssh2-streams': 0.1.12
+=======
+  '@types/semver@7.7.0': {}
+>>>>>>> origin/release/v0.1.0
 
   '@types/ssh2@1.15.5':
     dependencies:

@@ -52,7 +52,7 @@ export class PostgresDriver implements DatabaseDriver {
   async connect(): Promise<void> {
     try {
       this.client = await this.pool.connect()
-      await this.ensureVersionTable()
+      await this.ensureSquizzleSchema()
     } catch (error) {
       throw new DatabaseError(`Failed to connect: ${error}`)
     }
@@ -75,10 +75,10 @@ export class PostgresDriver implements DatabaseDriver {
     }
   }
 
-  async query<T = any>(sql: string): Promise<T[]> {
+  async query<T = any>(sql: string, params?: any[]): Promise<T[]> {
     const client = this.client || this.pool
     try {
-      const result = await client.query(sql)
+      const result = await client.query(sql, params)
       return result.rows
     } catch (error) {
       throw new DatabaseError(`Failed to query: ${error}`)
@@ -122,7 +122,7 @@ export class PostgresDriver implements DatabaseDriver {
         success,
         error,
         rollback_of
-      FROM squizzle_versions
+      FROM squizzle.versions
       ORDER BY applied_at DESC
     `
     
@@ -154,7 +154,7 @@ export class PostgresDriver implements DatabaseDriver {
     error?: string
   ): Promise<void> {
     const sql = `
-      INSERT INTO squizzle_versions (
+      INSERT INTO squizzle.versions (
         version, 
         checksum, 
         applied_by,
@@ -205,9 +205,13 @@ export class PostgresDriver implements DatabaseDriver {
     }
   }
 
-  private async ensureVersionTable(): Promise<void> {
+  private async ensureSquizzleSchema(): Promise<void> {
+    // Create squizzle schema if it doesn't exist
+    await this.execute(`CREATE SCHEMA IF NOT EXISTS squizzle`)
+    
+    // Create version tracking table in squizzle schema
     const sql = `
-      CREATE TABLE IF NOT EXISTS squizzle_versions (
+      CREATE TABLE IF NOT EXISTS squizzle.versions (
         id SERIAL PRIMARY KEY,
         version VARCHAR(50) NOT NULL UNIQUE,
         checksum VARCHAR(128) NOT NULL,
@@ -220,15 +224,45 @@ export class PostgresDriver implements DatabaseDriver {
       );
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_applied_at 
-        ON squizzle_versions(applied_at DESC);
+        ON squizzle.versions(applied_at DESC);
       
       CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success 
-        ON squizzle_versions(success);
+        ON squizzle.versions(success);
     `
     
     await this.execute(sql)
   }
 
+  async hasTable(tableName: string): Promise<boolean> {
+    // Check if it's asking for the system table
+    if (tableName === 'squizzle_versions') {
+      const result = await this.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'squizzle' AND table_name = 'versions'
+        )`
+      )
+      return result[0]?.exists || false
+    }
+    
+    // Check public schema for user tables  
+    const result = await this.query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = $1
+      )`,
+      [tableName]
+    )
+    return result[0]?.exists || false
+  }
+
+  async hasVersion(version: string): Promise<boolean> {
+    const result = await this.query(
+      `SELECT EXISTS(SELECT 1 FROM squizzle.versions WHERE version = $1)`,
+      [version]
+    )
+    return result[0]?.exists || false
+  }
 }
 
 // Factory function

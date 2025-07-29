@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # Run on all pull requests regardless of target branch
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20, 22]
         postgres-version: [14, 15, 16]
     
     services:
@@ -45,6 +45,7 @@ jobs:
       
       - run: pnpm test
         env:
+          CI: 'true'
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           
       - run: pnpm lint
