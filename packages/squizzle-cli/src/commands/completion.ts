@@ -309,9 +309,9 @@ _squizzle_next_version() {
   
   if [ \${#versions[@]} -gt 0 ]; then
     last_version=\${versions[-1]}
-    local major=$(echo $last_version | cut -d. -f1)
-    local minor=$(echo $last_version | cut -d. -f2)
-    local patch=$(echo $last_version | cut -d. -f3)
+    local major=\$(echo \$last_version | cut -d. -f1)
+    local minor=\$(echo \$last_version | cut -d. -f2)
+    local patch=\$(echo \$last_version | cut -d. -f3)
     
     local suggestions=(
       "\$major.\$minor.\$((patch + 1))"
@@ -325,7 +325,7 @@ _squizzle_next_version() {
   fi
 }
 
-_squizzle "$@"`
+_squizzle "$@"`;
 }
 
 /**
@@ -418,7 +418,7 @@ function __fish_squizzle_next_version
         echo "0.1.0"
         echo "1.0.0"
     end
-end`
+end`;
 }
 
 /**
@@ -626,7 +626,7 @@ Register-ArgumentCompleter -Native -CommandName squizzle -ScriptBlock {
             $globalOptions | Where-Object { $_.CompletionText -like "$wordToComplete*" }
         }
     }
-}`
+}`;
 }
 
 /**

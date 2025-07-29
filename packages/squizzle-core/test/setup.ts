@@ -9,11 +9,28 @@ const SYSTEM_SQL_PATH = join(__dirname, '../sql/system/v1.0.0.sql')
 const INFRA_PATH = join(__dirname, './infra')
 
 export async function setupTestDatabase() {
-  // Check if running in CI
-  const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+  // Check if we're in CI environment
+  const isCI = process.env.CI === 'true'
+  const databaseUrl = process.env.DATABASE_URL
   
-  if (!isCI) {
-    // Ensure database is running locally
+  if (isCI && databaseUrl) {
+    // In CI, use the DATABASE_URL directly
+    const sql = readFileSync(SYSTEM_SQL_PATH, 'utf-8')
+    
+    // Extract database name from DATABASE_URL
+    const dbName = databaseUrl.includes('/postgres') ? 'postgres' : 'squizzle_test'
+    
+    execSync(`psql ${databaseUrl} -c "SELECT 1"`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    
+    execSync(`psql ${databaseUrl}`, {
+      input: sql,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+  } else {
+    // Local development - use Docker Compose
     const isRunning = execSync('docker compose -f docker-compose-simple.yml ps -q db', { 
       cwd: INFRA_PATH,
       encoding: 'utf-8' 
@@ -31,15 +48,6 @@ export async function setupTestDatabase() {
       input: sql,
       stdio: ['pipe', 'pipe', 'pipe']
     })
-  } else {
-    // In CI, use psql directly with DATABASE_URL
-    const sql = readFileSync(SYSTEM_SQL_PATH, 'utf-8')
-    const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
-    
-    execSync(`psql "${databaseUrl}" -v ON_ERROR_STOP=1`, {
-      input: sql,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
   }
 }
 
@@ -50,19 +58,17 @@ export async function cleanupTestDatabase() {
     DROP TABLE IF EXISTS test_table CASCADE;
   `
   
-  const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+  const isCI = process.env.CI === 'true'
+  const databaseUrl = process.env.DATABASE_URL
   
-  if (!isCI) {
-    execSync('docker compose -f docker-compose-simple.yml exec -T db psql -U postgres -d squizzle_test', {
-      cwd: INFRA_PATH,
+  if (isCI && databaseUrl) {
+    execSync(`psql ${databaseUrl}`, {
       input: sql,
       stdio: ['pipe', 'pipe', 'pipe']
     })
   } else {
-    // In CI, use psql directly with DATABASE_URL
-    const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
-    
-    execSync(`psql "${databaseUrl}" -v ON_ERROR_STOP=1`, {
+    execSync('docker compose -f docker-compose-simple.yml exec -T db psql -U postgres -d squizzle_test', {
+      cwd: INFRA_PATH,
       input: sql,
       stdio: ['pipe', 'pipe', 'pipe']
     })

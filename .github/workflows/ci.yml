@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, 'release/**']
   pull_request:
-    branches: [main, 'release/**']
+    # Run on all pull requests regardless of target branch
 
 jobs:
   test:
