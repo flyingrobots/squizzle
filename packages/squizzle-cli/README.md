@@ -23,6 +23,7 @@ squizzle init
 ```
 
 Creates:
+
 - `.squizzle.yaml` configuration file
 - `db/` directory structure
 - Version tracking table in database
@@ -45,6 +46,7 @@ squizzle build 1.0.0 --notes "Add user authentication"
 ```
 
 Features:
+
 - Bundles Drizzle migrations from `db/drizzle/`
 - Includes custom SQL from `db/custom/`
 - Creates immutable tarball with manifest
@@ -287,6 +289,7 @@ npm test -- build.integration.test.ts
 ```
 
 Integration tests will:
+
 - Create temporary test versions (99.99.x)
 - Push artifacts to the configured test registry
 - Verify push, retrieval, and deletion operations
