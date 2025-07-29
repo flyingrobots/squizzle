@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-// Version follows semver
-export const VersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$/)
+// Version follows semver (without build metadata)
+export const VersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-[\w.]+)?$/)
 
 // Manifest schema with comprehensive metadata
 export const ManifestSchema = z.object({

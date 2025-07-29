@@ -4,6 +4,8 @@ import pLimit from 'p-limit'
 import * as tar from 'tar'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { 
   DatabaseDriver, 
   ArtifactStorage, 
@@ -23,6 +25,7 @@ export interface EngineOptions {
   storage: ArtifactStorage
   security?: SecurityProvider
   logger?: Logger
+  autoInit?: boolean // Enable/disable auto-initialization of system tables
 }
 
 export class MigrationEngine {
@@ -30,16 +33,21 @@ export class MigrationEngine {
   private storage: ArtifactStorage
   private security?: SecurityProvider
   private logger: Logger
+  private autoInit: boolean
 
   constructor(options: EngineOptions) {
     this.driver = options.driver
     this.storage = options.storage
     this.security = options.security
     this.logger = options.logger || new Logger()
+    this.autoInit = options.autoInit !== false // Default to true
   }
 
   async apply(version: Version, options: MigrationOptions = {}): Promise<void> {
     this.logger.info(`Applying version ${version}`, { version, options })
+    
+    // Check and initialize system tables if needed
+    await this.ensureSystemTables()
     
     // Acquire distributed lock
     const unlock = await this.driver.lock(`squizzle:apply:${version}`, options.timeout)
@@ -222,19 +230,39 @@ export class MigrationEngine {
   }
 
   private async verifyIntegrity(artifact: Buffer, manifest: Manifest): Promise<void> {
-    // The manifest checksum is calculated from file paths and their checksums,
-    // not from the artifact itself. We'll verify individual file checksums
-    // when we extract them. For now, just verify the manifest structure.
+    // The manifest checksum is calculated from the sorted file paths and their checksums.
+    // Individual file checksums are verified during extraction in extractMigrations.
+    // Here we verify that the manifest checksum matches what we calculate from the files.
     
-    // TODO: Implement proper file extraction and checksum verification
-    // This would involve:
-    // 1. Extract files from the tarball
-    // 2. Calculate checksum of each file
-    // 3. Verify against manifest.files[].checksum
-    // 4. Recalculate manifest checksum from files to verify
+    // Calculate manifest checksum from files
+    const sortedFiles = [...manifest.files].sort((a, b) => a.path.localeCompare(b.path))
+    const checksumData = sortedFiles
+      .map(file => `${file.path}:${file.checksum}`)
+      .join('\n')
     
-    // For now, skip artifact checksum verification in tests
-    return
+    const calculatedChecksum = createHash(manifest.checksumAlgorithm || 'sha256')
+      .update(checksumData)
+      .digest('hex')
+    
+    // Use constant-time comparison to prevent timing attacks
+    if (!this.constantTimeEqual(calculatedChecksum, manifest.checksum)) {
+      throw new ChecksumError(
+        `Manifest checksum mismatch: expected ${manifest.checksum}, got ${calculatedChecksum}`
+      )
+    }
+  }
+
+  private constantTimeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+    
+    let result = 0
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+    }
+    
+    return result === 0
   }
 
   private async extractMigrations(artifact: Buffer, manifest: Manifest): Promise<Migration[]> {
@@ -360,5 +388,36 @@ export class MigrationEngine {
     )
     
     await Promise.all(tasks)
+  }
+
+  private async ensureSystemTables(): Promise<void> {
+    try {
+      // Try to query the versions table
+      await this.driver.query('SELECT 1 FROM squizzle_versions LIMIT 1')
+      // If successful, tables exist
+      return
+    } catch (error) {
+      // Tables don't exist
+      if (!this.autoInit) {
+        throw new MigrationError(
+          'Squizzle system tables not found. Run "squizzle init:db" to initialize the database.'
+        )
+      }
+      
+      this.logger.warn('System tables missing, initializing...')
+      
+      try {
+        // Read and execute system SQL
+        const systemSqlPath = join(__dirname, '../sql/system/v1.0.0.sql')
+        const systemSql = readFileSync(systemSqlPath, 'utf-8')
+        
+        await this.driver.execute(systemSql)
+        this.logger.info('System tables created successfully')
+      } catch (initError) {
+        throw new MigrationError(
+          `Failed to auto-initialize system tables: ${initError}. Run "squizzle init:db" manually.`
+        )
+      }
+    }
   }
 }

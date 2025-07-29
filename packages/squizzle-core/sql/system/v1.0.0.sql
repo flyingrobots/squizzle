@@ -29,16 +29,13 @@ CREATE INDEX IF NOT EXISTS idx_squizzle_versions_success
 CREATE INDEX IF NOT EXISTS idx_squizzle_versions_is_system 
   ON squizzle_versions(is_system);
 
--- Add comments
+-- Future tables can be added here:
+-- squizzle_locks (distributed locking)
+-- squizzle_audit (migration audit trail)
+-- squizzle_environments (multi-env tracking)
+
+-- Add table comments
 COMMENT ON TABLE squizzle_versions IS 'Tracks all applied database versions including system versions';
-COMMENT ON COLUMN squizzle_versions.version IS 'Semantic version string (e.g., 1.0.0) or system version (e.g., system-v1.0.0)';
-COMMENT ON COLUMN squizzle_versions.checksum IS 'SHA256 checksum of the migration artifact';
-COMMENT ON COLUMN squizzle_versions.applied_at IS 'Timestamp when the version was applied';
-COMMENT ON COLUMN squizzle_versions.applied_by IS 'User or system that applied the migration';
-COMMENT ON COLUMN squizzle_versions.success IS 'Whether the migration was successful';
-COMMENT ON COLUMN squizzle_versions.error IS 'Error message if migration failed';
-COMMENT ON COLUMN squizzle_versions.rollback_of IS 'Version this migration rolls back, if applicable';
-COMMENT ON COLUMN squizzle_versions.manifest IS 'Full manifest of the migration artifact';
 COMMENT ON COLUMN squizzle_versions.is_system IS 'True for Squizzle system migrations, false for application migrations';
 
 -- Mark system version as applied

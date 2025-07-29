@@ -48,13 +48,30 @@ describe('MigrationEngine', () => {
     tempDir = await mkdtemp(join(tmpdir(), 'squizzle-test-'))
     
     // Initialize driver with test database
-    driver = createPostgresDriver({
-      host: 'localhost',
-      port: 54336, // Test database port
-      database: 'squizzle_test',
-      user: 'postgres',
-      password: 'testpass'
-    })
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'
+    
+    if (isCI) {
+      // In CI, parse DATABASE_URL
+      const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres'
+      const url = new URL(databaseUrl)
+      
+      driver = createPostgresDriver({
+        host: url.hostname,
+        port: parseInt(url.port || '5432'),
+        database: url.pathname.slice(1),
+        user: url.username,
+        password: url.password
+      })
+    } else {
+      // Local development
+      driver = createPostgresDriver({
+        host: 'localhost',
+        port: 54336, // Test database port
+        database: 'squizzle_test',
+        user: 'postgres',
+        password: 'testpass'
+      })
+    }
     
     // Connect to database
     await driver.connect()
@@ -223,6 +240,179 @@ describe('MigrationEngine', () => {
       expect(status.current).toBe(version)
       expect(status.applied).toHaveLength(1)
       expect(status.available).toContain(version)
+    })
+  })
+
+  describe('systemTables', () => {
+    it('should auto-initialize system tables when missing', async () => {
+      // Drop system tables to simulate fresh database
+      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      
+      // Create engine with autoInit enabled (default)
+      const autoEngine = new MigrationEngine({
+        driver,
+        storage: new FilesystemStorage(join(tempDir, 'artifacts')),
+        security: new LocalSecurityProvider('test-secret')
+      })
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = autoEngine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should auto-create system tables
+      await expect(autoEngine.apply(version)).resolves.not.toThrow()
+      
+      // Verify system tables were created
+      const tables = await driver.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+      `)
+      expect(tables).toHaveLength(1)
+      
+      // Verify system version was recorded
+      const systemVersions = await driver.query(`
+        SELECT version, is_system 
+        FROM squizzle_versions 
+        WHERE is_system = true
+      `)
+      expect(systemVersions).toHaveLength(1)
+      expect(systemVersions[0].version).toBe('system-v1.0.0')
+    })
+
+    it('should throw error when system tables missing and autoInit disabled', async () => {
+      // Drop system tables to simulate fresh database
+      await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      
+      // Create engine with autoInit disabled
+      const noAutoEngine = new MigrationEngine({
+        driver,
+        storage: new FilesystemStorage(join(tempDir, 'artifacts')),
+        security: new LocalSecurityProvider('test-secret'),
+        autoInit: false
+      })
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = noAutoEngine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should throw error about missing system tables
+      await expect(noAutoEngine.apply(version))
+        .rejects.toThrow('Squizzle system tables not found. Run "squizzle init:db" to initialize the database.')
+      
+      // Verify system tables were NOT created
+      const tables = await driver.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'squizzle_versions'
+      `)
+      expect(tables).toHaveLength(0)
+    })
+
+    it('should not reinitialize when system tables already exist', async () => {
+      // Ensure system tables exist
+      await setupTestDatabase()
+      
+      // Record a dummy system version to track if tables get recreated
+      await driver.execute(`
+        INSERT INTO squizzle_versions (version, checksum, applied_by, manifest, is_system)
+        VALUES ('test-marker', 'test', 'test', '{}', false)
+      `)
+      
+      const version = '1.0.0'
+      
+      // Load test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      const storage = engine['storage'] as FilesystemStorage
+      await storage.push(version, artifactBuffer, manifest)
+      
+      // Apply should work without reinitializing
+      await engine.apply(version)
+      
+      // Verify our test marker is still there
+      const markers = await driver.query(`
+        SELECT version FROM squizzle_versions WHERE version = 'test-marker'
+      `)
+      expect(markers).toHaveLength(1)
+    })
+  })
+
+  describe('verifyIntegrity', () => {
+    it('should pass with valid manifest checksum', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Verify integrity should not throw
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest)).resolves.not.toThrow()
+    })
+
+    it('should throw ChecksumError with invalid manifest checksum', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Tamper with manifest checksum
+      manifest.checksum = 'invalid_checksum_0000000000000000000000000000000000000000000000000000'
+      
+      // Should throw ChecksumError
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest))
+        .rejects.toThrow('Manifest checksum mismatch')
+    })
+
+    it('should handle different checksum algorithms', async () => {
+      const version = '1.0.0'
+      
+      // Load pre-built test artifact
+      const artifactPath = join(__dirname, '../test/artifacts/test-v1.0.0.tar.gz')
+      const artifactBuffer = readFileSync(artifactPath)
+      const manifest = await extractManifestFromArtifact(artifactBuffer)
+      
+      // Change algorithm to sha512
+      manifest.checksumAlgorithm = 'sha512'
+      // Recalculate checksum with sha512
+      const { createHash } = await import('crypto')
+      const sortedFiles = [...manifest.files].sort((a, b) => a.path.localeCompare(b.path))
+      const checksumData = sortedFiles
+        .map(file => `${file.path}:${file.checksum}`)
+        .join('\n')
+      manifest.checksum = createHash('sha512').update(checksumData).digest('hex')
+      
+      // Should not throw
+      await expect(engine['verifyIntegrity'](artifactBuffer, manifest)).resolves.not.toThrow()
+    })
+
+    it('should use constant-time comparison for checksums', async () => {
+      // Test that constantTimeEqual works correctly
+      const equal1 = engine['constantTimeEqual']('abc123', 'abc123')
+      expect(equal1).toBe(true)
+      
+      const equal2 = engine['constantTimeEqual']('abc123', 'abc124')
+      expect(equal2).toBe(false)
+      
+      const equal3 = engine['constantTimeEqual']('abc', 'abcd')
+      expect(equal3).toBe(false)
     })
   })
 })

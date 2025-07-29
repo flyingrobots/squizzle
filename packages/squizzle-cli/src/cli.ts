@@ -14,6 +14,8 @@ import { completionCommand } from './commands/completion'
 import { showBanner } from './ui/banner'
 import { createConfig, loadConfig } from './config'
 import chalk from 'chalk'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 // Load environment variables
 config()
@@ -34,12 +36,72 @@ program
     }
   })
 
-// Initialize command
+// Initialize project command
 program
   .command('init')
   .description('Initialize SQUIZZLE in your project')
+  .addHelpText('after', `
+Examples:
+  $ squizzle init
+  $ squizzle init --config .squizzle.yaml`)
   .action(async () => {
     await initCommand()
+  })
+
+// Initialize database command
+program
+  .command('init:db')
+  .alias('db:init')
+  .description('Initialize Squizzle system tables in the database')
+  .option('--force', 'Recreate tables even if they exist')
+  .option('--dry-run', 'Show what would be created')
+  .action(async (options) => {
+    const config = await loadConfig(program.opts().config)
+    const env = program.opts().env
+    
+    const driver = createPostgresDriver(config.environments[env].database)
+    const logger = new Logger({ level: program.opts().verbose ? 'debug' : 'info' })
+    
+    try {
+      await driver.connect()
+      
+      // Read system SQL
+      const systemSqlPath = join(__dirname, '../../squizzle-core/sql/system/v1.0.0.sql')
+      const systemSql = readFileSync(systemSqlPath, 'utf-8')
+      
+      if (options.dryRun) {
+        console.log(chalk.bold('\nSystem tables SQL to be executed:\n'))
+        console.log(chalk.dim(systemSql))
+        return
+      }
+      
+      // Check if tables already exist
+      const tables = await driver.query(`
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'squizzle_versions'
+      `)
+      
+      if (tables.length > 0 && !options.force) {
+        console.log(chalk.yellow('System tables already exist. Use --force to recreate.'))
+        return
+      }
+      
+      if (options.force && tables.length > 0) {
+        logger.warn('Dropping existing system tables...')
+        await driver.execute('DROP TABLE IF EXISTS squizzle_versions CASCADE')
+      }
+      
+      logger.info('Creating Squizzle system tables...')
+      await driver.execute(systemSql)
+      
+      console.log(chalk.green('✓ System tables initialized successfully'))
+    } catch (error) {
+      console.error(chalk.red(`Failed to initialize system tables: ${error}`))
+      process.exit(1)
+    } finally {
+      await driver.disconnect()
+    }
   })
 
 // Build command
@@ -53,7 +115,13 @@ program
   .option('--registry <registry>', 'override OCI registry URL')
   .option('--repository <repository>', 'override OCI repository name')
   .option('--skip-push', 'skip pushing to storage (local build only)')
-  .action(async (version, options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle build 1.0.0 --notes "Initial schema"
+  $ squizzle build 1.1.0 --notes "Add user tables" --author "John Doe"
+  $ squizzle build 2.0.0 --notes "Major refactor" --tag breaking --tag v2
+  $ squizzle build 1.2.3 --dry-run`)
+  .action(async (version: string, options: any) => {
     const config = await loadConfig(program.opts().config)
     await buildCommand(version, { ...options, config })
   })
@@ -67,7 +135,14 @@ program
   .option('--timeout <ms>', 'migration timeout in milliseconds', '300000')
   .option('--parallel', 'run independent migrations in parallel')
   .option('--max-parallel <n>', 'max parallel migrations', '5')
-  .action(async (version, options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle apply 1.0.0
+  $ squizzle apply 1.2.0 --env production
+  $ squizzle apply 2.0.0 --dry-run
+  $ squizzle apply 1.5.0 --parallel --max-parallel 10
+  $ squizzle apply 3.0.0 --force --timeout 600000`)
+  .action(async (version: string, options: any) => {
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -90,7 +165,13 @@ program
   .description('Rollback a database version')
   .option('-f, --force', 'force rollback without confirmation')
   .option('--dry-run', 'simulate rollback')
-  .action(async (version, options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle rollback 2.0.0
+  $ squizzle rollback 1.5.0 --force
+  $ squizzle rollback 3.0.0 --dry-run
+  $ squizzle rollback 2.1.0 --env production`)
+  .action(async (version: string, options: any) => {
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -113,7 +194,13 @@ program
   .description('Show database version status')
   .option('-l, --limit <n>', 'limit number of versions shown', '10')
   .option('--json', 'output as JSON')
-  .action(async (options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle status
+  $ squizzle status --limit 20
+  $ squizzle status --json
+  $ squizzle status --env production`)
+  .action(async (options: any) => {
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -133,7 +220,12 @@ program
   .command('verify <version>')
   .description('Verify a database version can be applied')
   .option('--json', 'output as JSON')
-  .action(async (version, options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle verify 1.0.0
+  $ squizzle verify 2.1.0 --json
+  $ squizzle verify 3.0.0 --env staging`)
+  .action(async (version: string, options: any) => {
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -154,7 +246,12 @@ program
   .alias('ls')
   .description('List available versions')
   .option('--json', 'output as JSON')
-  .action(async (options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle list
+  $ squizzle ls
+  $ squizzle list --json`)
+  .action(async (options: any) => {
     const config = await loadConfig(program.opts().config)
     const storage = createOCIStorage(config.storage)
     
@@ -175,7 +272,13 @@ program
   .option('--init', 'initialize config file')
   .option('--validate', 'validate config file')
   .option('--show', 'show current config')
-  .action(async (options) => {
+  .addHelpText('after', `
+Examples:
+  $ squizzle config --init
+  $ squizzle config --validate
+  $ squizzle config --show
+  $ squizzle config --show --config custom.yaml`)
+  .action(async (options: any) => {
     if (options.init) {
       await createConfig()
     } else if (options.validate) {
@@ -211,7 +314,7 @@ Examples:
   # Generate PowerShell completion
   $ squizzle completion --shell powershell >> $PROFILE
 `)
-  .action(async (options) => {
+  .action(async (options: any) => {
     await completionCommand(options)
   })
 

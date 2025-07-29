@@ -27,8 +27,8 @@ export function createManifest(options: ManifestOptions): Manifest {
   })
 
   // Calculate overall checksum
-  const hash = createHash('sha256')
-  files
+  const hash = createHash('sha256');
+  [...files]
     .sort((a, b) => a.path.localeCompare(b.path))
     .forEach(file => {
       hash.update(file.path)
