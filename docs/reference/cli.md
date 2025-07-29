@@ -453,6 +453,34 @@ squizzle cache size
 squizzle cache prune --older-than 30d
 ```
 
+### `completion`
+
+Generate shell completion scripts for enhanced CLI experience.
+
+```bash
+squizzle completion [options]
+
+Options:
+  --shell           Shell type                   [choices: "bash", "zsh", "fish", "powershell"] [default: "bash"]
+```
+
+Example:
+```bash
+# Generate bash completion
+squizzle completion --shell bash > ~/.bash_completion.d/squizzle
+
+# Generate zsh completion  
+squizzle completion --shell zsh > ~/.zsh/completions/_squizzle
+
+# Generate fish completion
+squizzle completion --shell fish > ~/.config/fish/completions/squizzle.fish
+
+# Generate PowerShell completion
+squizzle completion --shell powershell >> $PROFILE
+```
+
+See the [Shell Completions Guide](../guides/shell-completions.md) for detailed installation instructions.
+
 ### `sign`
 
 Sign a migration artifact.
