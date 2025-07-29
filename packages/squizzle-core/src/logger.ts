@@ -64,7 +64,8 @@ export class Logger {
           winston.format.errors({ stack: true }),
           winston.format.printf(({ timestamp, level, message, ...meta }) => {
             const color = this.getLevelColor(level)
-            const prefix = chalk[color](`[${timestamp}] ${level.toUpperCase()}`)
+            const colorFn = chalk[color] as any
+            const prefix = colorFn(`[${timestamp}] ${level.toUpperCase()}`)
             
             let output = `${prefix} ${message}`
             
@@ -79,7 +80,7 @@ export class Logger {
             }
             
             // Add error details
-            if (meta.error) {
+            if (meta.error && meta.error instanceof Error) {
               output += '\n' + chalk.red(meta.error.stack || meta.error.message)
             }
             

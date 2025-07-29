@@ -21,7 +21,7 @@ interface TelemetryConfig {
 }
 
 export class Telemetry {
-  private config: TelemetryConfig
+  config: TelemetryConfig
   private sessionId: string
   private userId: string
   private queue: TelemetryEvent[] = []
@@ -274,7 +274,8 @@ export function addTelemetryToCommand(program: any): void {
       const configPath = join(os.homedir(), '.squizzle', 'config.json')
       
       if (options.status) {
-        const enabled = getTelemetry().config.enabled
+        const telemetry = getTelemetry()
+        const enabled = telemetry.config.enabled
         console.log(`Telemetry is ${enabled ? 'enabled' : 'disabled'}`)
         return
       }
