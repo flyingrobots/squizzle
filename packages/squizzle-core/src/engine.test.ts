@@ -39,8 +39,10 @@ describe('MigrationEngine', () => {
   let driver: any
 
   beforeAll(async () => {
-    // Mock environment for tests
-    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+    // Mock environment for tests if not in CI
+    if (!process.env.CI) {
+      vi.stubEnv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+    }
     
     // Ensure test database is set up
     await setupTestDatabase()

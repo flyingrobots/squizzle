@@ -45,6 +45,7 @@ jobs:
       
       - run: pnpm test
         env:
+          CI: 'true'
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           
       - run: pnpm lint

@@ -17,18 +17,22 @@ export async function setupTestDatabase() {
     // In CI, use the DATABASE_URL directly
     const sql = readFileSync(SYSTEM_SQL_PATH, 'utf-8')
     
-    // Extract database name from DATABASE_URL
-    const dbName = databaseUrl.includes('/postgres') ? 'postgres' : 'squizzle_test'
-    
-    execSync(`psql ${databaseUrl} -c "SELECT 1"`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-    
-    execSync(`psql ${databaseUrl}`, {
-      input: sql,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+    try {
+      // Test connection
+      execSync(`psql "${databaseUrl}" -c "SELECT 1"`, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+      
+      // Apply system tables
+      execSync(`psql "${databaseUrl}"`, {
+        input: sql,
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+    } catch (error) {
+      console.error('Failed to setup test database:', error)
+      throw error
+    }
   } else {
     // Local development - use Docker Compose
     const isRunning = execSync('docker compose -f docker-compose-simple.yml ps -q db', { 
@@ -62,7 +66,7 @@ export async function cleanupTestDatabase() {
   const databaseUrl = process.env.DATABASE_URL
   
   if (isCI && databaseUrl) {
-    execSync(`psql ${databaseUrl}`, {
+    execSync(`psql "${databaseUrl}"`, {
       input: sql,
       stdio: ['pipe', 'pipe', 'pipe']
     })
