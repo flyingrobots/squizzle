@@ -119,7 +119,7 @@ describe('buildCommand', () => {
       await buildCommand('1.0.0' as Version, { config: mockConfig })
 
       expect(existsSync(join(testDir, '.squizzle/build/1.0.0'))).toBe(true)
-      expect(existsSync(join(testDir, 'db/tarballs'))).toBe(true)
+      expect(existsSync(join(testDir, 'squizzle-v1.0.0.tar.gz'))).toBe(true)
     })
   })
 
@@ -354,7 +354,7 @@ describe('buildCommand', () => {
 
       await buildCommand('1.2.3' as Version, { config: mockConfig })
 
-      expect(existsSync(join(testDir, 'db/tarballs/squizzle-v1.2.3.tar.gz'))).toBe(true)
+      expect(existsSync(join(testDir, 'squizzle-v1.2.3.tar.gz'))).toBe(true)
     })
 
     it('should include manifest in tarball', async () => {
@@ -390,7 +390,7 @@ describe('buildCommand', () => {
         config: mockConfig 
       })
 
-      expect(existsSync(join(testDir, 'db/tarballs'))).toBe(false)
+      expect(existsSync(join(testDir, 'squizzle-v1.0.0.tar.gz'))).toBe(false)
       expect(existsSync(join(testDir, '.squizzle/build/1.0.0'))).toBe(false)
     })
 
@@ -474,7 +474,7 @@ describe('buildCommand', () => {
       await buildCommand('1.0.0' as Version, { config: mockConfig })
 
       // Should complete without errors (signing TODO is only executed when enabled)
-      expect(existsSync(join(testDir, 'db/tarballs/squizzle-v1.0.0.tar.gz'))).toBe(true)
+      expect(existsSync(join(testDir, 'squizzle-v1.0.0.tar.gz'))).toBe(true)
     })
 
     it('should attempt signing when security is enabled', async () => {
@@ -489,7 +489,7 @@ describe('buildCommand', () => {
       await buildCommand('1.0.0' as Version, { config: mockConfig })
 
       // Currently just a TODO, but should not fail
-      expect(existsSync(join(testDir, 'db/tarballs/squizzle-v1.0.0.tar.gz'))).toBe(true)
+      expect(existsSync(join(testDir, 'squizzle-v1.0.0.tar.gz'))).toBe(true)
     })
   })
 })
