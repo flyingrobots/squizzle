@@ -435,10 +435,11 @@ describe('buildCommand', () => {
         }
       }
 
-      await expect(buildCommand('1.0.0' as Version, { config: mockConfig }))
-        .rejects.toThrow('process.exit unexpectedly called with "1"')
+      // Should succeed even when Drizzle Kit generation fails
+      await buildCommand('1.0.0' as Version, { config: mockConfig })
 
-      expect(processExit).toHaveBeenCalledWith(1)
+      // Should not call process.exit
+      expect(processExit).not.toHaveBeenCalled()
     })
 
     it('should handle missing package.json gracefully', async () => {

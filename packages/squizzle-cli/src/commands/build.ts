@@ -299,9 +299,10 @@ async function collectMigrationFiles(): Promise<Array<{
     console.warn(`Warning: Could not read custom migrations directory at ${customDir}`)
   }
   
-  // If no files found, provide helpful error
-  if (files.length === 0) {
-    throw new Error(`No migration files found. Please check that your drizzle migrations are in 'db/drizzle' or create custom migrations in 'db/squizzle'`)
+  // If no files found in normal mode, provide helpful warning but allow empty builds
+  if (files.length === 0 && process.env.SQUIZZLE_SKIP_VALIDATION !== 'true') {
+    console.warn(chalk.yellow(`\n⚠️  No migration files found. Please check that your drizzle migrations are in 'db/drizzle' or create custom migrations in 'db/squizzle'\n`))
+    console.warn(chalk.yellow(`Creating empty build artifact...\n`))
   }
   
   return files
