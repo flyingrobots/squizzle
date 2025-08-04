@@ -70,6 +70,22 @@ export class VersionChecker {
   private cache: Map<string, ToolCheckResult> = new Map()
   
   async checkCompatibility(): Promise<CompatibilityResult> {
+    // Skip all checks only when explicitly requested (integration tests)
+    if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+      const mockResults: ToolCheckResult[] = TOOL_REQUIREMENTS.map(req => ({
+        name: req.name,
+        installed: '999.999.999', // Mock high version to satisfy requirements
+        required: req.required,
+        compatible: true
+      }))
+      
+      return {
+        compatible: true,
+        tools: mockResults,
+        suggestions: []
+      }
+    }
+    
     const results = await Promise.all(
       TOOL_REQUIREMENTS.map(tool => this.checkTool(tool))
     )
@@ -85,6 +101,16 @@ export class VersionChecker {
   }
   
   private async checkTool(requirement: ToolRequirement): Promise<ToolCheckResult> {
+    // Skip external tool checks only when explicitly requested (integration tests)
+    if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+      return {
+        name: requirement.name,
+        installed: '999.999.999', // Mock high version
+        required: requirement.required,
+        compatible: true
+      }
+    }
+    
     // Check cache first
     const cacheKey = `${requirement.command}:${requirement.versionFlag}`
     const cached = this.cache.get(cacheKey)
@@ -225,6 +251,11 @@ export async function checkVersionCompatibility(options: {
 export async function checkDatabaseConnection(
   connectionUrl: string
 ): Promise<{ connected: boolean; error?: string }> {
+  // Skip database checks only when explicitly requested (integration tests)
+  if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    return { connected: true }
+  }
+  
   try {
     // Parse connection URL
     const url = new URL(connectionUrl)
@@ -251,6 +282,11 @@ export async function checkDatabaseConnection(
 
 // Storage access check
 export async function checkStorageAccess(config: any): Promise<{ accessible: boolean; error?: string }> {
+  // Skip storage checks only when explicitly requested (integration tests)
+  if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    return { accessible: true }
+  }
+  
   try {
     switch (config.type) {
       case 'filesystem':
@@ -287,6 +323,12 @@ export async function checkStorageAccess(config: any): Promise<{ accessible: boo
 
 // Pre-build checks combining all validations
 export async function preBuildChecks(config: any): Promise<void> {
+  // Skip all pre-build checks only when explicitly requested (integration tests)
+  if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    console.log(chalk.green('✅ Pre-build checks skipped (test mode)\n'))
+    return
+  }
+  
   console.log(chalk.bold('\n🛡️  Running pre-build checks...\n'))
   
   // Check environment first

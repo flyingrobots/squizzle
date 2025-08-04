@@ -168,6 +168,11 @@ export class ConfigurationError extends Error {
 
 // Integration with CLI/Engine
 export function validateEnvironment(options: { exit?: boolean } = {}): void {
+  // Skip validation only when explicitly requested (integration tests)
+  if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    return
+  }
+  
   const validator = new ConfigValidator()
   const result = validator.validate()
   

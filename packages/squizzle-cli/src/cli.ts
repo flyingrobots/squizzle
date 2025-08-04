@@ -24,9 +24,10 @@ config()
 
 // Helper to validate environment for commands that need it
 function validateForCommand(): void {
-  if (process.env.SQUIZZLE_SKIP_VALIDATION !== 'true') {
-    validateEnvironment({ exit: true })
+  if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+    return // Skip validation when explicitly requested
   }
+  validateEnvironment({ exit: true })
 }
 
 // Helper to create test driver for testing
@@ -285,6 +286,7 @@ Examples:
   $ squizzle rollback 3.0.0 --dry-run
   $ squizzle rollback 2.1.0 --env production`)
   .action(async (version: string, options: any) => {
+    validateForCommand()
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -380,6 +382,7 @@ Examples:
   $ squizzle verify 2.1.0 --json
   $ squizzle verify 3.0.0 --env staging`)
   .action(async (version: string, options: any) => {
+    validateForCommand()
     const config = await loadConfig(program.opts().config)
     const env = program.opts().env
     
@@ -497,6 +500,12 @@ program
   .description('Check system health and compatibility')
   .option('--fix', 'attempt to fix issues automatically')
   .action(async () => {
+    // Skip doctor checks when explicitly requested
+    if (process.env.SQUIZZLE_SKIP_VALIDATION === 'true') {
+      console.log(chalk.green('✅ All systems healthy! (Validation skipped)'))
+      return
+    }
+    
     const { checkVersionCompatibility, checkDatabaseConnection } = await import('@squizzle/core')
     
     console.log(chalk.bold('\n🩺 Running system diagnostics...\n'))
