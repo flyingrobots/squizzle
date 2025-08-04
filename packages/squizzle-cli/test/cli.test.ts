@@ -17,7 +17,9 @@ async function runCLI(args: string[], customEnv?: Record<string, string>): Promi
   const defaultEnv = { 
     ...process.env, 
     NODE_ENV: 'test',
-    DATABASE_URL: 'postgresql://postgres:postgres@localhost:54332/postgres',
+    DATABASE_URL: process.env.CI 
+      ? 'postgresql://postgres:postgres@localhost:5432/squizzle_test'
+      : 'postgresql://postgres:postgres@localhost:54332/postgres',
     SQUIZZLE_SKIP_VALIDATION: 'true',
     SQUIZZLE_STORAGE_TYPE: 'filesystem',
     SQUIZZLE_STORAGE_PATH: '/tmp/squizzle-test'

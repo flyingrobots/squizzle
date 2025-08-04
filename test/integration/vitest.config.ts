@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    testTimeout: 60000, // Integration tests can take longer
+    testTimeout: 120000, // Integration tests can take longer in CI
     hookTimeout: 30000, // Container startup can take time
     teardownTimeout: 10000, // Container cleanup
     pool: 'forks', // Better isolation for integration tests
