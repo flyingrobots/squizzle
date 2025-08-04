@@ -25,11 +25,6 @@ describe('Squizzle End-to-End Workflow', () => {
     })
     
     // 2. Initialize database
-    const driver = createPostgresDriver({
-      connectionString: getConnectionString(testEnv.postgres)
-    })
-    await driver.connect()
-    
     const initResult = await runCliCommand(['init'], { 
       cwd: testEnv.tempDir,
       env: { DATABASE_URL: getConnectionString(testEnv.postgres) }
@@ -102,17 +97,26 @@ describe('Squizzle End-to-End Workflow', () => {
     expect(applyResult.stdout).toContain('Successfully applied version 1.0.0')
     
     // 7. Verify application
-    const userTables = await driver.query(`
-      SELECT table_name FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = 'users'
-    `)
-    expect(userTables).toHaveLength(1)
+    const driver = createPostgresDriver({
+      connectionString: getConnectionString(testEnv.postgres)
+    })
+    await driver.connect()
     
-    const profileTables = await driver.query(`
-      SELECT table_name FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = 'profiles'
-    `)
-    expect(profileTables).toHaveLength(1)
+    try {
+      const userTables = await driver.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'users'
+      `)
+      expect(userTables).toHaveLength(1)
+      
+      const profileTables = await driver.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'profiles'
+      `)
+      expect(profileTables).toHaveLength(1)
+    } finally {
+      await driver.disconnect()
+    }
     
     // 8. Check status
     const statusResult = await runCliCommand(['status'], {
@@ -130,8 +134,6 @@ describe('Squizzle End-to-End Workflow', () => {
     })
     expect(verifyResult.exitCode).toBe(0)
     expect(verifyResult.stdout).toContain('Integrity check passed')
-    
-    await driver.disconnect()
   }, 60000) // Full workflow can take time
   
   it('should handle incremental migrations', async () => {

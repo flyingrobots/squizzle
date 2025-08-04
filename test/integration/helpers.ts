@@ -27,7 +27,9 @@ export async function runCliCommand(
       },
       cwd: options.cwd,
       reject: false,
-      all: true
+      all: true,
+      timeout: 30000, // 30 second timeout to prevent hanging
+      killSignal: 'SIGKILL' // Force kill if hanging
     }
   )
   
