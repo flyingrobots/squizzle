@@ -117,23 +117,11 @@ program
     }
   })
 
-// Initialize project command
+// Initialize database command (primary command, with init as alias)
 program
   .command('init')
-  .description('Initialize SQUIZZLE in your project')
-  .addHelpText('after', `
-Examples:
-  $ squizzle init
-  $ squizzle init --config .squizzle.yaml`)
-  .action(async () => {
-    await initCommand()
-  })
-
-// Initialize database command
-program
-  .command('init:db')
+  .alias('init:db')
   .alias('db:init')
-  .alias('init')
   .description('Initialize Squizzle system tables in the database')
   .option('--force', 'Recreate tables even if they exist')
   .option('--dry-run', 'Show what would be created')
@@ -219,7 +207,8 @@ Examples:
     
     validateForCommand()
     const config = await loadConfig(program.opts().config)
-    await buildCommand(version, { ...options, config })
+    const globalOpts = program.opts()
+    await buildCommand(version, { ...options, config, drizzlePath: globalOpts.drizzlePath })
   })
 
 // Apply command

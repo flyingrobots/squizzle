@@ -20,6 +20,7 @@ interface BuildOptions {
   dryRun?: boolean
   verbose?: boolean
   config: Config
+  drizzlePath?: string
 }
 
 interface BuildFile {
@@ -73,7 +74,7 @@ export async function buildCommand(version: Version, options: BuildOptions): Pro
     }
 
     spinner.text = 'Scanning Drizzle migrations...'
-    const rawFiles = await collectMigrationFiles()
+    const rawFiles = await collectMigrationFiles(options.drizzlePath)
     
     // Enhanced file collection with size and checksum
     for (const file of rawFiles) {
@@ -239,7 +240,7 @@ function validateBuild(files: BuildFile[], manifest: any): string[] {
   return issues
 }
 
-async function collectMigrationFiles(): Promise<Array<{
+async function collectMigrationFiles(drizzlePath?: string): Promise<Array<{
   path: string
   content: Buffer
   type: 'migration' | 'rollback' | 'seed' | 'drizzle' | 'custom'
@@ -261,7 +262,7 @@ async function collectMigrationFiles(): Promise<Array<{
   }
   
   // Collect Drizzle migrations
-  const drizzleDir = join(process.cwd(), 'db/drizzle')
+  const drizzleDir = drizzlePath ? join(process.cwd(), drizzlePath) : join(process.cwd(), 'db/drizzle')
   try {
     const drizzleFiles = await readdir(drizzleDir)
     for (const file of drizzleFiles) {
@@ -275,7 +276,7 @@ async function collectMigrationFiles(): Promise<Array<{
     }
   } catch (error) {
     // Drizzle directory might not exist - this is fine
-    console.warn(`Warning: Could not read drizzle directory at ${drizzleDir}`)
+    console.warn(`⚠️ No migration files found. Checked: ${drizzleDir}`)
   }
   
   // Collect custom migrations
@@ -352,16 +353,18 @@ async function createArtifact(
   // Write manifest
   await writeFile(join(tempDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
   
-  // Create tarball
-  const tarballDir = join(baseDir, 'db/tarballs')
-  const tarballPath = join(tarballDir, `squizzle-v${version}.tar.gz`)
-  await mkdir(tarballDir, { recursive: true })
+  // Create tarball in current directory to match CLI expectations
+  const tarballPath = join(baseDir, `squizzle-v${version}.tar.gz`)
+  const manifestPath = join(baseDir, `squizzle-v${version}.manifest.json`)
   
   await create({
     gzip: true,
     file: tarballPath,
     cwd: tempDir
   }, ['.'])
+  
+  // Also write the manifest file to the base directory for the push command
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2))
   
   return tarballPath
 }
